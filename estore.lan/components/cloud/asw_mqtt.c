@@ -166,7 +166,7 @@ void setting_new_server(cJSON *body)
     ESP_LOGE("ATE", "new paras %s %s %s \n", setting.host, setting.product_key, setting.device_secret);
 
     cJSON_Delete(res);
-    free(msg); // [tgl mark]add
+    free(msg); //
 
     newparaget(); //[tgl mark]打印数据，没有产生是实际的结果
 }

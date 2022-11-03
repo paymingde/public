@@ -157,7 +157,7 @@ static char *getdev_handle_type_2_fun()
 #if PARALLEL_HOST_SET_WITH_SN
             if (strcmp(cgi_inv_arr[i].regInfo.sn, mt.host_psn) == 0)
 #else
-            if (devicedata.modbus_id == mt.host_adr)
+            if (cgi_inv_arr[i].regInfo.modbus_id == mt.host_adr)
 #endif
                 host_status = 1;
             else

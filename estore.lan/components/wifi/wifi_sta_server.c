@@ -346,8 +346,7 @@ static void display_scan_result(void)
 //-------------------------------------//
 void scan_ap_once(void)
 {
-    // esp_wifi_disconnect();//v2.0.0 add
-    ESP_ERROR_CHECK(esp_wifi_scan_start(&scanres, true));
+    esp_wifi_scan_start(&scanres, true);
 
     if (g_flag_scan_done == true)
     {

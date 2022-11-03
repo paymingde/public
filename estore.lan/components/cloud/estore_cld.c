@@ -529,9 +529,9 @@ int write_battery_configuration(cJSON *setbattery)
         else
             index = asw_get_index_byPsn(crt_psn);
 
-        getJsonNumU8(&monitor_para[index].batmonitor.dc_per, "type", setbattery);
+        getJsonNum(&monitor_para[index].batmonitor.dc_per, "type", setbattery);
 
-        getJsonNumU8(&monitor_para[index].batmonitor.uu1, "mod_r", setbattery);
+        getJsonNum(&monitor_para[index].batmonitor.uu1, "mod_r", setbattery);
 
         //// 判断是否为自定义模式 并机模式下，主机设置为自定义模式，则发送到主机;普通模式下
         //    g_battery_selfmode_is_same, g_parallel_enable, g_host_modbus_id);
@@ -558,6 +558,7 @@ int write_battery_configuration(cJSON *setbattery)
         {
             g_battery_selfmode_is_same = 0;
         }
+
         else if ((monitor_para[index].batmonitor.uu1 != 4 || monitor_para[index].batmonitor.dc_per != 1) && g_parallel_enable && g_host_modbus_id == monitor_para[index].modbus_id)
         {
             g_battery_selfmode_is_same = 0;
@@ -567,15 +568,15 @@ int write_battery_configuration(cJSON *setbattery)
 
         //--------------------------------------//
 
-        if (getJsonNumU8(&monitor_para[index].batmonitor.up1, "muf", setbattery) == 0)
+        if (getJsonNum(&monitor_para[index].batmonitor.up1, "muf", setbattery) == 0)
         {
             b_info = 1;
         }
-        if (getJsonNumU8(&monitor_para[index].batmonitor.uu2, "mod", setbattery)==0)
+        if (getJsonNum(&monitor_para[index].batmonitor.uu2, "mod", setbattery) == 0)
         {
             b_info = 1;
         }
-        if (getJsonNumU8(&monitor_para[index].batmonitor.up2, "num", setbattery) == 0)
+        if (getJsonNum(&monitor_para[index].batmonitor.up2, "num", setbattery) == 0)
         {
             b_info = 1;
         }

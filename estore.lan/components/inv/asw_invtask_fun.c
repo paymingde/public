@@ -260,7 +260,7 @@ void handleMsg_pwrActive_fun(MonitorPara *p_monitor_para, meter_data_t *p_inv_me
                      g_host_modbus_id, p_monitor_para->adv.meter_regulate);
 
 #else
-            modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_METER, 7, m16data); /** 电表防逆流: 41108-41114*/
+            ret = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_METER, 7, m16data); /** 电表防逆流: 41108-41114*/
 
             ASW_LOGI("*** cast inv host modebus_id:%d + regulate: 000A000A %d\n",
                      monitor_para.host_adr, p_monitor_para->adv.meter_regulate);
@@ -713,7 +713,7 @@ void handleMsg_broadCast_handleMsg_dspZvCld_fun()
 
 #else
         modbus_write_inv(monitor_para.host_adr, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
-        ASW_LOGI("*******host inv***com task->set cloud status index:data=0x%04X\r\n", monitor_para.host_adr, data);
+        ASW_LOGI("*******host inv***com %d,task->set cloud status index:data=0x%04X\r\n", monitor_para.host_adr, data);
 #endif
     }
 }
@@ -1314,7 +1314,6 @@ int8_t setting_event_handler(void)
     static int mIndex = 0; // Lanstick-MultilInv +
     /** 无逆变器在线*/
 
-    /** 遍历全部逆变器 */
     if (mIndex++ > g_num_real_inv)
     {
         mIndex = 1;

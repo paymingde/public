@@ -25,11 +25,6 @@ void hex_print(const char *buf, int len);
 /*---  json ------*/
 int getJsonStr(char *dest, char *name, int size, cJSON *json);
 int getJsonNum(int *dest, char *name, cJSON *json);
-int getJsonNumU8(void *dest, char *name, cJSON *json);
-int getJsonNumU16(void *dest, char *name, cJSON *json);
-int getJsonNumU32(void *dest, char *name, cJSON *json);
-int getJsonNumS8(void *dest, char *name, cJSON *json);
-int getJsonNumS16(void *dest, char *name, cJSON *json);
 void add_int_to_json(cJSON *res, char *tag_name, int num);
 void add_str_to_json(cJSON *res, char *tag_name, char *val);
 

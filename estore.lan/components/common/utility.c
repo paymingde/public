@@ -188,6 +188,8 @@ void factory_initial(void)
     factory_reset_nvs();
     ESP_LOGW(TAG, " will restart by [facotry initial]");
 
+  
+
     esp_restart();
 }
 //---------------------------------------------//query_meter_proc--->
@@ -219,76 +221,6 @@ int getJsonNum(int *dest, char *name, cJSON *json)
     if (cJSON_IsNumber(item))
     {
         *dest = item->valueint;
-        return 0;
-
-        // ASW_LOGW("---888***&&&& tgl debug print: get value :%d",item->valueint);
-    }
-    return -1;
-}
-
-int getJsonNumU8(void *dest, char *name, cJSON *json)
-{
-    const cJSON *item = NULL;
-    item = cJSON_GetObjectItemCaseSensitive(json, name);
-    if (cJSON_IsNumber(item))
-    {
-        *(uint8_t *)dest = item->valueint;
-        return 0;
-
-        // ASW_LOGW("---888***&&&& tgl debug print: get value :%d",item->valueint);
-    }
-    return -1;
-}
-
-int getJsonNumU16(void *dest, char *name, cJSON *json)
-{
-    const cJSON *item = NULL;
-    item = cJSON_GetObjectItemCaseSensitive(json, name);
-    if (cJSON_IsNumber(item))
-    {
-        *(uint16_t *)dest = item->valueint;
-        return 0;
-
-        // ASW_LOGW("---888***&&&& tgl debug print: get value :%d",item->valueint);
-    }
-    return -1;
-}
-
-int getJsonNumU32(void *dest, char *name, cJSON *json)
-{
-    const cJSON *item = NULL;
-    item = cJSON_GetObjectItemCaseSensitive(json, name);
-    if (cJSON_IsNumber(item))
-    {
-        *(uint32_t *)dest = item->valueint;
-        return 0;
-
-        // ASW_LOGW("---888***&&&& tgl debug print: get value :%d",item->valueint);
-    }
-    return -1;
-}
-
-int getJsonNumS8(void *dest, char *name, cJSON *json)
-{
-    const cJSON *item = NULL;
-    item = cJSON_GetObjectItemCaseSensitive(json, name);
-    if (cJSON_IsNumber(item))
-    {
-        *(int8_t *)dest = item->valueint;
-        return 0;
-
-        // ASW_LOGW("---888***&&&& tgl debug print: get value :%d",item->valueint);
-    }
-    return -1;
-}
-
-int getJsonNumS16(void *dest, char *name, cJSON *json)
-{
-    const cJSON *item = NULL;
-    item = cJSON_GetObjectItemCaseSensitive(json, name);
-    if (cJSON_IsNumber(item))
-    {
-        *(int16_t *)dest = item->valueint;
         return 0;
 
         // ASW_LOGW("---888***&&&& tgl debug print: get value :%d",item->valueint);

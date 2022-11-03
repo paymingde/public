@@ -37,7 +37,7 @@
 
 #define DEBUG_PRINT_ENABLE 1
 #define STATIC_IP_SET_ENABLE 0
-#define PARALLEL_HOST_SET_WITH_SN 1 // host采用sn确认测试
+#define PARALLEL_HOST_SET_WITH_SN 0 // host采用sn确认测试
 #define TRIPHASE_ARM_SUPPORT 0
 // #define DEFINE_BATTERY_SAME_ENBALE 1 //电池设置参数一致
 
