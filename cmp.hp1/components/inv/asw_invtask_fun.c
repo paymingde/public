@@ -4,7 +4,7 @@
 
 #define DAY_CHARG_SCH_NUM 6 /// mark +
 
-#define INV_BROADCAST_DELAYMS 500 * 1000 // 200ms
+#define INV_BROADCAST_DELAYMS 300 * 1000 // 200ms
 #define INV_BROADCAST_NUM 3              //广播次数
 
 // static DayDetailSch dayDetailSch[DAY_CHARG_SCH_NUM]; // current day schedule of charge/discharge power into/from battery
@@ -18,6 +18,10 @@ static uint16_t last_mdata[7] = {0}; // for meter status frame change detect
 static DATE_STRUCT mS_curr_date;
 uint16_t u16_lChargeValue = 0; // 0-stop;1-;2-charg;3-discharge
 
+// static uint16_t s_last_data_mode = 0;
+// static uint16_t sche_last_data_mode[INV_NUM] = {0};
+uint16_t g_last_data_mode = 0;
+uint16_t g_sche_last_data_mode[INV_NUM] = {0};
 //*************************************//
 static const char *TAG = "asw_invtask_fun.c";
 
@@ -38,9 +42,10 @@ void handleMsg_setChangefun(void *p);
 // static uint8_t g_is_in_schedule[INV_NUM] = {0};
 // static uint8_t g_41153_state[INV_NUM] = {0};
 //----------------------------------------/
-void handleMsg_getSafty_fun()
+int8_t handleMsg_getSafty_fun()
 {
     DATE_STRUCT curr_date;
+
     uint8_t i;
     get_current_date(&curr_date);
     ASW_LOGI("------current data:%04d-%02d-%02d %02d:%02d:%02d\n",
@@ -65,10 +70,12 @@ void handleMsg_getSafty_fun()
         ASW_LOGI("------dayDetailSch:%d, minutes_inday=%d, duration=%d, charge_flag=%d\n", i, Bat_DaySchdle_arr_t[i].minutes_inday,
                  Bat_DaySchdle_arr_t[i].duration, Bat_DaySchdle_arr_t[i].charge_flag);
     }
+
+    return ASW_OK;
 }
 //-----------------------------------------------------//
 //---Eng.Stg.Mch-lanstick 20220907 +-
-void handleMsg_setChange_fun(int mIndex, MonitorBat_info *p_monitor_para)
+int8_t handleMsg_setChange_fun(int mIndex, MonitorBat_info *p_monitor_para)
 {
     uint16_t data[2] = {0};
     uint16_t data_mode = 0;
@@ -81,7 +88,7 @@ void handleMsg_setChange_fun(int mIndex, MonitorBat_info *p_monitor_para)
     //-------------------------//
 
     static uint16_t sche_last_data[INV_NUM][2] = {0};
-    static uint16_t sche_last_data_mode[INV_NUM] = {0};
+    // static uint16_t sche_last_data_mode[INV_NUM] = {0};
 
     data[0] = p_monitor_para->batmonitor.freq_mode;
 
@@ -125,7 +132,7 @@ void handleMsg_setChange_fun(int mIndex, MonitorBat_info *p_monitor_para)
 
     //////////////////////////////////////////////////////////////////////
 
-    if (data_mode > 0 && data_mode != sche_last_data_mode[mIndex])
+    if (data_mode > 0 && data_mode != g_sche_last_data_mode[mIndex])
     {
         if (g_asw_debug_enable == 1)
         {
@@ -136,7 +143,7 @@ void handleMsg_setChange_fun(int mIndex, MonitorBat_info *p_monitor_para)
 
         if (modbus_write_inv(mBattery_arr_data[mIndex].modbus_id, 0x044F, 1, &data_mode) == ASW_OK) /** 储能机运行模式：41104*/
         {
-            sche_last_data_mode[mIndex] = data_mode;
+            g_sche_last_data_mode[mIndex] = data_mode;
         }
         else
         {
@@ -189,11 +196,13 @@ void handleMsg_setChange_fun(int mIndex, MonitorBat_info *p_monitor_para)
             }
         }
     }
+
+    return ASW_OK;
 }
 
 //------------------------------------------------------//
 //并机模式下，只发送主机，，普通模式下广播发送 电表及放逆流参数 有变化发送
-void handleMsg_pwrActive_fun(MonitorPara *p_monitor_para, meter_data_t *p_inv_meter)
+int handleMsg_pwrActive_fun(MonitorPara *p_monitor_para, meter_data_t *p_inv_meter)
 {
     Bat_Monitor_arr_t bat_monitor_para = {0};
 
@@ -202,7 +211,7 @@ void handleMsg_pwrActive_fun(MonitorPara *p_monitor_para, meter_data_t *p_inv_me
     static uint8_t need_send = 1; /** 开机后, 发一次*/
     uint16_t m16data[7] = {0};    // data form active power
 
-    int ret;
+    int ret = 0;
     uint8_t m_invModbus_Id = 0;
 
     m16data[0] = 0x000A; // status of the meter
@@ -307,16 +316,17 @@ void handleMsg_pwrActive_fun(MonitorPara *p_monitor_para, meter_data_t *p_inv_me
         }
     }
 #endif
+
+    return ret;
 }
 
 //------------------------------------------------------------//
-void handleMsg_setAdv_fun()
+int handleMsg_setAdv_fun()
 {
-    // int ret;
+    int ret = 0;
     uint16_t data[2] = {0};
     data[0] = 0x0005;
     data[1] = 0x0005;
-// modbus_write_inv(3, INV_REG_ADDR_METER, 2, data); /** 电表状态: 41108*/
 
 /////////////////////////////////////////////////////////
 #if !PARALLEL_HOST_SET_WITH_SN
@@ -332,7 +342,7 @@ void handleMsg_setAdv_fun()
     {
         for (uint8_t i = 0; i < INV_BROADCAST_NUM; i++)
         {
-            modbus_write_inv(0, INV_REG_ADDR_METER, 2, data); /** 电表状态: 41108*/
+            ret = modbus_write_inv(0, INV_REG_ADDR_METER, 2, data); /** 电表状态: 41108*/
 
             usleep(INV_BROADCAST_DELAYMS); // 260ms
         }
@@ -342,7 +352,7 @@ void handleMsg_setAdv_fun()
     else
     {
 #if PARALLEL_HOST_SET_WITH_SN
-        modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_METER, 2, data); /** 电表状态: 41108*/
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_METER, 2, data); /** 电表状态: 41108*/
 
         ASW_LOGI("*** cast inv host modebus_id:%d meter status :data[0]=%d,data[1]=%d\r\n",
                  g_host_modbus_id, data[0], data[1]);
@@ -359,14 +369,15 @@ void handleMsg_setAdv_fun()
 
     memcpy(last_mdata, data, 2 * sizeof(uint16_t));
     // ASW_LOGI("Send meter status command:%04X %04X \r\n", data[0], data[1]);
+
+    return ret;
 }
-//------------------------------------------------------------//
 
 //-----------------------------------------------------//
 // void handleMsg_setBattery_fun(int mIndex, MonitorPara *p_monitor_para)
-void handleMsg_setBattery_fun(int mIndex, MonitorBat_info *p_monitor_para)
+int8_t handleMsg_setBattery_fun(int mIndex, MonitorBat_info *p_monitor_para)
 {
-    int ret;
+    int8_t ret = ASW_FAIL;
     uint16_t data[6] = {0};
 
     Bat_arr_t m_bats_data = {0};
@@ -385,19 +396,30 @@ void handleMsg_setBattery_fun(int mIndex, MonitorBat_info *p_monitor_para)
                  data[0], data[1], data[2], data[3], data[4]);
     }
 
+    usleep(200 * 1000);
+
     memset(data, 0, sizeof(data));
     data[0] = p_monitor_para->batmonitor.chg_max * 100; // estore mach type
     data[1] = p_monitor_para->batmonitor.dchg_max * 100;
-    ret = modbus_write_inv(m_bats_data[mIndex].modbus_id, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 储能机种类别选择*/
+    ret = modbus_write_inv(m_bats_data[mIndex].modbus_id, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 冲放电深度*/
     if (ret == ASW_OK)
     {
         ASW_LOGI("**********com task->set battery dischage/chage info index:data[0]=%d,data[1]=%d", data[0], data[1]);
     }
+
+    //-----------------  debug run mode swith--------------//
+    g_last_data_mode = p_monitor_para->batmonitor.uu1;
+
+    g_sche_last_data_mode[mIndex] = p_monitor_para->batmonitor.uu1;
+
+    ASW_LOGI("---------CCC ----------------g_last_data_mode:%d\n ", g_last_data_mode);
+
+    return ret;
 }
 ///////////////////////////////////////////////////////
-void handleMsg_broadCast_setBattery_fun(MonitorBat_info *p_monitor_para)
+int8_t handleMsg_broadCast_setBattery_fun(MonitorBat_info *p_monitor_para)
 {
-    int ret;
+    int8_t ret = ASW_FAIL;
     uint16_t data[6] = {0};
     // MonitorPara *p_monitor_para = (MonitorPara)p1;
     data[0] = p_monitor_para->batmonitor.dc_per; // estore mach type
@@ -437,39 +459,63 @@ void handleMsg_broadCast_setBattery_fun(MonitorBat_info *p_monitor_para)
 
         for (uint8_t i = 0; i < INV_BROADCAST_NUM; i++)
         {
-            modbus_write_inv(0, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 储能机种类别选择*/
+            modbus_write_inv(0, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 充放电深度*/
 
             usleep(INV_BROADCAST_DELAYMS); // 260ms
         }
-
+        ret = ASW_OK;
         ASW_LOGI("*********broad cast *com task->set battery dischage/chage info index:data[0]=%d,data[1]=%d", data[0], data[1]);
     }
     else
     {
 
 #if PARALLEL_HOST_SET_WITH_SN
-        modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY, 5, data); /** 储能机种类别选择*/
-        usleep(200);
-        modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 储能机种类别选择*/
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY, 5, data); /** 储能机种类别选择*/
+        usleep(200 * 1000);
+        memset(data, 0, sizeof(data));
+        data[0] = p_monitor_para->batmonitor.chg_max * 100; // estore mach type
+        data[1] = p_monitor_para->batmonitor.dchg_max * 100;
+
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 充放电深度*/
 
         ASW_LOGI("********* cast inv host modbus_id:%d *com task->set battery dischage/chage info index:data[0]=%d,data[1]=%d",
                  g_host_modbus_id, data[0], data[1]);
 
 #else
-        modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_BATTERY, 5, data); /** 储能机种类别选择*/
-        usleep(200);
-        modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 储能机种类别选择*/
+        ret = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_BATTERY, 5, data); /** 储能机种类别选择*/
+        usleep(200 * 1000);
+        memset(data, 0, sizeof(data));
+        data[0] = p_monitor_para->batmonitor.chg_max * 100; // estore mach type
+        data[1] = p_monitor_para->batmonitor.dchg_max * 100;
+
+        ret = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, data); /** 充放电深度*/
 
         ASW_LOGI("********* cast inv host modbus_id:%d *com task->set battery dischage/chage info index:data[0]=%d,data[1]=%d",
                  monitor_para.host_adr, data[0], data[1]);
 #endif
     }
+    //-----------------  debug run mode swith--------------//
+
+    g_last_data_mode = p_monitor_para->batmonitor.uu1;
+    for (uint8_t n = 0; n < INV_NUM; n++)
+    {
+        g_sche_last_data_mode[n] = p_monitor_para->batmonitor.uu1;
+    }
+    ASW_LOGI("------Set Battery Degbug Info---AA ----g_last_data_mode:%d\n ", g_last_data_mode);
+
+    // s_last_data_mode = 0;
+    // for (uint8_t n = 0; n < INV_NUM; n++)
+    // {
+    //     sche_last_data_mode[n] = 0;
+    // }
+
+    return ret;
 }
 
 //------------------------------------------------------//
-void handleMsg_broadCast_setRunMode_fun(MonitorBat_info *p_monitor_para)
+int8_t handleMsg_broadCast_setRunMode_fun(MonitorBat_info *p_monitor_para)
 {
-    int ret;
+    int8_t ret = ASW_FAIL;
     uint16_t data[6] = {0};
     // MonitorPara *p_monitor_para = (MonitorPara)p1;
 
@@ -493,6 +539,7 @@ void handleMsg_broadCast_setRunMode_fun(MonitorBat_info *p_monitor_para)
 
             usleep(INV_BROADCAST_DELAYMS); // 260ms
         }
+        ret = ASW_OK;
 
         ASW_LOGI("***broad cast com task->set run mode index:data[0]=%d,data[1]=%d\r\n",
                  data[0], data[1]);
@@ -500,22 +547,37 @@ void handleMsg_broadCast_setRunMode_fun(MonitorBat_info *p_monitor_para)
     else
     {
 #if PARALLEL_HOST_SET_WITH_SN
-        modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY, 2, data); /** 储能机种类别选择*/
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY, 2, data); /** 储能机种类别选择*/
         ASW_LOGI("*** cast inv host modebus_id:%d com task->set run mode index:data[0]=%d,data[1]=%d\r\n",
                  g_host_modbus_id, data[0], data[1]);
 
 #else
 
-        modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_BATTERY, 2, data); /** 储能机种类别选择*/
+        ret = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_BATTERY, 2, data); /** 储能机种类别选择*/
         ASW_LOGI("*** cast inv host modebus_id:%d com task->set run mode index:data[0]=%d,data[1]=%d\r\n",
                  monitor_para.host_adr, data[0], data[1]);
 #endif
     }
+
+    //-----------------  debug run mode swith--------------//
+
+    g_last_data_mode = p_monitor_para->batmonitor.uu1;
+
+    for (uint8_t n = 0; n < INV_NUM; n++)
+
+    {
+
+        g_sche_last_data_mode[n] = p_monitor_para->batmonitor.uu1;
+    }
+
+    ASW_LOGI("Set Battery Degbug Info-------DDDDD----------------g_last_data_mode:%d\n ", g_last_data_mode);
+
+    return ret;
 }
 //------------------------------------------------------//
-void handleMsg_broadCast_setPower_fun(MonitorBat_info *p_monitor_para)
+int8_t handleMsg_broadCast_setPower_fun(MonitorBat_info *p_monitor_para)
 {
-    int ret;
+    int8_t ret = ASW_FAIL;
     // MonitorPara *p_monitor_para = (MonitorPara)p1;
     uint16_t midata = p_monitor_para->batmonitor.uu4;
 #if !PARALLEL_HOST_SET_WITH_SN
@@ -544,6 +606,7 @@ void handleMsg_broadCast_setPower_fun(MonitorBat_info *p_monitor_para)
             modbus_write_inv(0, INV_REG_DRM_0N_OFF, 1, &midata); /** 启停： 40201*/
             usleep(INV_BROADCAST_DELAYMS);
         }
+        ret = ASW_OK;
 
         ASW_LOGI("****** Broadcast ****com task->set power on/off index:address=%d,data=%d\r\n",
                  INV_REG_ADDR_POWER_ON, p_monitor_para->batmonitor.uu4);
@@ -552,37 +615,39 @@ void handleMsg_broadCast_setPower_fun(MonitorBat_info *p_monitor_para)
     {
 #if PARALLEL_HOST_SET_WITH_SN
         // modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_BATTERY, 2, data); /** 储能机种类别选择*/
-        modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_POWER_ON, 1, &midata); /** 储能机开关: 41102*/
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_ADDR_POWER_ON, 1, &midata); /** 储能机开关: 41102*/
         usleep(200);
 
         if (p_monitor_para->batmonitor.uu4 == 2)
             midata = 1;
         else
             midata = 0;
-        modbus_write_inv(g_host_modbus_id, INV_REG_DRM_0N_OFF, 1, &midata); /** 启停： 40201*/
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_DRM_0N_OFF, 1, &midata); /** 启停： 40201*/
         ASW_LOGI("****** inv host modebus_id:%d ****com task->set power on/off index:address=%d,data=%d\r\n",
                  g_host_modbus_id, INV_REG_ADDR_POWER_ON, p_monitor_para->batmonitor.uu4);
 
 #else
-        modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_POWER_ON, 1, &midata); /** 储能机开关: 41102*/
+        ret = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_POWER_ON, 1, &midata); /** 储能机开关: 41102*/
         usleep(200);
 
         if (p_monitor_para->batmonitor.uu4 == 2)
             midata = 1;
         else
             midata = 0;
-        modbus_write_inv(monitor_para.host_adr, INV_REG_DRM_0N_OFF, 1, &midata); /** 启停： 40201*/
+        ret = modbus_write_inv(monitor_para.host_adr, INV_REG_DRM_0N_OFF, 1, &midata); /** 启停： 40201*/
         ASW_LOGI("****** inv host modebus_id:%d ****com task->set power on/off index:address=%d,data=%d\r\n",
                  monitor_para.host_adr, INV_REG_ADDR_POWER_ON, p_monitor_para->batmonitor.uu4);
 #endif
     }
+
+    return ret;
 }
 //---------------------------------------------------//
 
 // 判断逻辑： 储能电池是玉泽（电池厂商代码是6）&& 逆变器通讯协议版本是2.1.2
-void handleMsg_wrt_staInfo2Inv_fun()
+int8_t handleMsg_wrt_staInfo2Inv_fun()
 {
-    int ret;
+    int8_t res = ASW_FAIL;
     uint8_t buf[64] = {0};
     wifi_sta_para_t sta_para = {0};
 
@@ -615,7 +680,7 @@ void handleMsg_wrt_staInfo2Inv_fun()
 
         ASW_LOGI("inv  %d protocol ver %s , bat_type:%d \n",
                  i, m_com_protocol_inv, monitor_para[i].batmonitor.dc_per);
-        int8_t res = 0;
+
         if (monitor_para[i].batmonitor.dc_per == 6 && strncmp(m_com_protocol_inv, "V2.1.2", sizeof("V2.1.2")) == 0)
         {
             res = modbus_write_inv_bit8(inv_arr[i].regInfo.modbus_id, INV_REG_ADDR_SSID_PSSWD, 32, buf);
@@ -629,38 +694,50 @@ void handleMsg_wrt_staInfo2Inv_fun()
     ASW_LOGI("****** ***com write inv ssid:%s  & password:%s \r\n",
              sta_para.ssid, sta_para.password);
     xSemaphoreGive(g_semar_wrt_sync_reboot);
+
+    return res;
 }
 
 //--------------------------------------------------------//
 //写并联模式到逆变器
-void handleMsg_wrt_parallelInfo2Inv_fun()
+int8_t handleMsg_wrt_parallelInfo2Inv_fun()
 {
     MonitorPara monitor_para = {0};
     read_global_var(METER_CONTROL_CONFIG, &monitor_para);
 
     /////////////  Lanstick-MutltivInv //////////////////
 
-    uint16_t data = monitor_para.is_parallel;
+    uint16_t data[2] = {0};
+    data[0] = 0;
+    data[1] = monitor_para.is_parallel;
+
+    // uint16_t data = monitor_para.is_parallel;
 
     for (uint8_t i = 0; i < INV_BROADCAST_NUM; i++)
     {
-        modbus_write_inv(0, INV_REG_ADDR_SET_PARALLEL, 1, &data); /** 并联模式: 41118*/
-        usleep(INV_BROADCAST_DELAYMS);                            // 260ms
-        usleep(INV_BROADCAST_DELAYMS);                            // 260ms
+        modbus_write_inv(0, INV_REG_ADDR_SET_HOST, 2, data); /** 并联模式: 41118*/
+        usleep(INV_BROADCAST_DELAYMS);                       // 260ms
     }
 
+    flush_serial_port(UART_NUM_1); //
+    usleep(200 * 1000);
     // if (monitor_para.is_parallel)
-    int res = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_SET_HOST, 1, &data); /** 主从模式: 41117*/
+    int8_t res = modbus_write_inv(monitor_para.host_adr, INV_REG_ADDR_SET_HOST, 1, &data[1]); /** 主从模式: 41117*/
 
-    ASW_LOGI("\n====== handleMsg_wrt_parallelInfo2Inv_fun res[%d]=====\n ", res);
+    /* 主从机发生变化，同步到云端 */
+
+    // clear_cloud_invinfo();
+    if (g_asw_debug_enable == 1)
+        ESP_LOGI(TAG, "\n====== handleMsg_wrt_parallelInfo2Inv_fun res[%d]=====\n ", res);
+
+    return res;
 }
 
 //----------------------------------------//
-//----------------------------------------//
-void handleMsg_broadCast_handleMsg_dspZvCld_fun()
+int8_t handleMsg_broadCast_handleMsg_dspZvCld_fun()
 {
     uint16_t data = 0;
-    // int ret=0;
+    int8_t ret = ASW_FAIL;
 
     wifi_sta_para_t sta_para = {0};
     //////////////////////
@@ -692,7 +769,7 @@ void handleMsg_broadCast_handleMsg_dspZvCld_fun()
 #if !PARALLEL_HOST_SET_WITH_SN
     if (monitor_para.is_parallel == 0) //普通模式下广播发送
 #else
-    if (g_parallel_enable == 0)                                                //普通模式下广播发送
+    if (g_parallel_enable == 0)                                                      //普通模式下广播发送
 
 #endif
     {
@@ -702,24 +779,28 @@ void handleMsg_broadCast_handleMsg_dspZvCld_fun()
             usleep(INV_BROADCAST_DELAYMS);                     // 260ms
         }
 
+        ret = ASW_OK;
+
         ASW_LOGI("******broadcast ****com task->set cloud status index:data=0x%04X\r\n", data);
     }
     else //并机模式下 主机发送
     {
 #if PARALLEL_HOST_SET_WITH_SN
 
-        modbus_write_inv(g_host_modbus_id, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
+        ret = modbus_write_inv(g_host_modbus_id, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
         ASW_LOGI("*******host inv***com %d,task->set cloud status index:data=0x%04X\r\n", g_host_modbus_id, data);
 
 #else
-        modbus_write_inv(monitor_para.host_adr, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
+        ret = modbus_write_inv(monitor_para.host_adr, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
         ASW_LOGI("*******host inv***com %d,task->set cloud status index:data=0x%04X\r\n", monitor_para.host_adr, data);
 #endif
     }
+
+    return ret;
 }
 //-------------------------------------------------------//
 //发送充放电调度信息到逆变器 广播or 主机
-void handleMsg_broadCast_charge2inv_fun()
+int8_t handleMsg_broadCast_charge2inv_fun()
 {
     ////// TODO ////////
     uint16_t data[2] = {0};
@@ -733,7 +814,7 @@ void handleMsg_broadCast_charge2inv_fun()
     //-------------------------//
 
     static uint16_t sarr_last_data[2] = {0};
-    static uint16_t s_last_data_mode = {0};
+    // static uint16_t s_last_data_mode = {0};
     uint8_t mModbusId = 0;
 
     data[0] = u16_lChargeValue;
@@ -760,10 +841,10 @@ void handleMsg_broadCast_charge2inv_fun()
         break;
     }
 
-    if (g_asw_debug_enable > 1)
+    if (g_asw_debug_enable == 1 && (data_mode != g_last_data_mode || data[0] != sarr_last_data[0]))
     {
         printf("\n\n");
-        printf("data_mode:%d,sche_last_data_mode:%d \n", data_mode, s_last_data_mode);
+        printf("data_mode:%d,sche_last_data_mode:%d \n", data_mode, g_last_data_mode);
         printf("data0[%d]data1[%d],sche_last_datadata0[%d]data1[%d]\n", data[0], data[1], sarr_last_data[0], sarr_last_data[1]);
 
         printf("\n\n");
@@ -774,13 +855,17 @@ void handleMsg_broadCast_charge2inv_fun()
     {
         mModbusId = g_host_modbus_id;
     }
-    //普通模式发送广播
-    else
+    //普通模式发送广播 单机发送3
+    else if (g_num_real_inv == 1)
+    {
+        mModbusId = 3;
+    }
+    else if (g_num_real_inv > 1)
     {
         mModbusId = 0;
     }
 
-    if (data_mode > 0 && data_mode != s_last_data_mode)
+    if (data_mode > 0 && data_mode != g_last_data_mode)
     {
         if (g_asw_debug_enable == 1)
         {
@@ -791,7 +876,7 @@ void handleMsg_broadCast_charge2inv_fun()
 
         if (modbus_write_inv(mModbusId, 0x044F, 1, &data_mode) == ASW_OK) /** 储能机运行模式：41104*/
         {
-            s_last_data_mode = data_mode;
+            g_last_data_mode = data_mode;
         }
         else
         {
@@ -842,11 +927,13 @@ void handleMsg_broadCast_charge2inv_fun()
             }
         }
     }
+
+    return ASW_OK;
 }
 //------------------------------------------------------//
-void handleMsg_setRunMode_fun(int mIndex, MonitorBat_info *p_monitor_para)
+int8_t handleMsg_setRunMode_fun(int mIndex, MonitorBat_info *p_monitor_para)
 {
-    int ret;
+    int8_t ret = ASW_FAIL;
     uint16_t data[6] = {0};
     Bat_arr_t m_bat_datas = {0};
     read_global_var(GLOBAL_BATTERY_DATA, &m_bat_datas);
@@ -860,6 +947,15 @@ void handleMsg_setRunMode_fun(int mIndex, MonitorBat_info *p_monitor_para)
         ASW_LOGI("***com task->set run mode index:data[0]=%d,data[1]=%d\r\n",
                  data[0], data[1]);
     }
+
+    //-----------------  debug run mode swith--------------//
+
+    g_last_data_mode = p_monitor_para->batmonitor.uu1;
+    g_sche_last_data_mode[mIndex] = p_monitor_para->batmonitor.uu1;
+
+    ASW_LOGI("Set Battery Degbug Info  BB ----------------g_last_data_mode:%d\n ", g_last_data_mode);
+
+    return ret;
 }
 //------------------------------------------------------//
 void handleMsg_setFirstRun_fun(int mIndex, MonitorBat_info *p_monitor_para)
@@ -885,11 +981,11 @@ void handleMsg_setFirstRun_fun(int mIndex, MonitorBat_info *p_monitor_para)
     }
 }
 //--------------------------------------------------------//
-void handleMsg_setPower_fun(int mIndex, MonitorBat_info *p_monitor_para)
+int8_t handleMsg_setPower_fun(int mIndex, MonitorBat_info *p_monitor_para)
 {
     Bat_arr_t m_arrbats_data = {0};
     read_global_var(GLOBAL_BATTERY_DATA, &m_arrbats_data);
-    int ret;
+    int ret = ASW_FAIL;
     // MonitorPara *p_monitor_para = (MonitorPara)p1;
     uint16_t midata = p_monitor_para->batmonitor.uu4;
     // if (is_inv_has_estore() == 1) /** 储能机*/
@@ -910,6 +1006,8 @@ void handleMsg_setPower_fun(int mIndex, MonitorBat_info *p_monitor_para)
         ASW_LOGI("**********com task->set power on/off index:address=%d,data=%d\r\n",
                  INV_REG_ADDR_POWER_ON, p_monitor_para->batmonitor.uu4);
     }
+
+    return ret;
 }
 //------------------------------------------------------//
 void handleMsg_loadSpeed_fun(int mIndex, MonitorBat_info *p_monitor_para)
@@ -980,10 +1078,10 @@ void handleMsg_comBoxTime_fun(int mIndex)
 }
 
 //-------------------------------------------------//
-void handleMsg_dspZvCld_fun(int mIndex)
+int8_t handleMsg_dspZvCld_fun(int mIndex)
 {
     uint16_t data = 0;
-    // int ret=0;
+    int8_t ret = ASW_FAIL;
 
     wifi_sta_para_t sta_para = {0};
     //////////////////////
@@ -1009,8 +1107,10 @@ void handleMsg_dspZvCld_fun(int mIndex)
         }
     }
 
-    modbus_write_inv(m_arrbats_data[mIndex].modbus_id, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
+    ret = modbus_write_inv(m_arrbats_data[mIndex].modbus_id, INV_REG_CLD_STATUS, 1, &data); /** 告知逆变器MQTT状态*/
     ASW_LOGI("**********com task->set cloud status index:data=%d\r\n", data);
+
+    return ret;
 }
 
 //////////////////// Lanstick-MultilInv +/////////////////////
@@ -1022,23 +1122,26 @@ int8_t asw_meter2inv_para_set(uint32_t msg_index)
     MonitorPara monitor_para = {0};
     meter_data_t inv_meter = {0};
 
+    int res = 0;
+
     read_global_var(METER_CONTROL_CONFIG, &monitor_para);
     read_global_var(GLOBAL_METER_DATA, &inv_meter);
     switch (msg_index)
     {
     case MSG_PWR_ACTIVE_INDEX:
-        handleMsg_pwrActive_fun(&monitor_para, &inv_meter);
+        res = handleMsg_pwrActive_fun(&monitor_para, &inv_meter);
         break;
 
         // zero export: send the meter status, while meter is offline.
     case MSG_INV_SET_ADV_INDEX:
-        handleMsg_setAdv_fun();
+        res = handleMsg_setAdv_fun();
         break;
 
     default:
         break;
     }
-    task_inv_meter_msg &= (~msg_index);
+    if (res == 0)
+        task_inv_meter_msg &= (~msg_index);
     return 0;
 }
 
@@ -1049,48 +1152,56 @@ int8_t inv_broadcast_set_para(uint32_t msg_index)
     read_global_var(PARA_CONFIG, &monitor_para_arr);
     MonitorBat_info monitor_para = monitor_para_arr[0];
 
+    int8_t ret = ASW_FAIL;
+
     switch (msg_index)
     {
         // battery: set battery information
     case MSG_BRDCST_SET_BATTERY_INDEX:
-        handleMsg_broadCast_setBattery_fun(&monitor_para);
+        ret = handleMsg_broadCast_setBattery_fun(&monitor_para);
         break;
 
     case MSG_BRDCST_SET_RUN_MODE_INDEX:
-        handleMsg_broadCast_setRunMode_fun(&monitor_para);
+        ret = handleMsg_broadCast_setRunMode_fun(&monitor_para);
         break;
 
     case MSG_BRDCST_SET_POWER_INDEX:
-        handleMsg_broadCast_setPower_fun(&monitor_para);
+        ret = handleMsg_broadCast_setPower_fun(&monitor_para);
         break;
 
         //同步电池调度信息
     case MSG_BRDCST_GET_SAFETY_INDEX:
-        handleMsg_getSafty_fun();
+        ret = handleMsg_getSafty_fun();
         break;
 
         //写sta联网信息到逆变器
     case MSG_WRT_STA_INFO_INDEX:
-        handleMsg_wrt_staInfo2Inv_fun();
+        ret = handleMsg_wrt_staInfo2Inv_fun();
         break;
 
         //写并联模式到逆变器
     case MSG_WRT_SET_HOST_INDEX:
-        handleMsg_wrt_parallelInfo2Inv_fun();
+        ret = handleMsg_wrt_parallelInfo2Inv_fun();
+        if (ret == ASW_OK)
+        { //逆变器写入成功后，同步信息到云端
+            ESP_LOGW(TAG, " will sync inv info to cloud...");
+            clear_inv_pmu_sync_info();
+        }
         break;
         //同步云端通讯状态到逆变器
     case MSG_BRDCST_DSP_ZV_CLD_INDEX:
-        handleMsg_broadCast_handleMsg_dspZvCld_fun();
+        ret = handleMsg_broadCast_handleMsg_dspZvCld_fun();
         break;
         //发送电池调度信息到逆变器
     case MSG_BRDCST_CHARGE_INDEX:
-        handleMsg_broadCast_charge2inv_fun();
+        ret = handleMsg_broadCast_charge2inv_fun();
         break;
 
     default:
         break;
     }
-    g_task_inv_broadcast_msg &= (~msg_index);
+    if (ret == ASW_OK)
+        g_task_inv_broadcast_msg &= (~msg_index);
 
     return 0;
 }
@@ -1104,41 +1215,44 @@ int8_t inv_set_para(int inv_index, uint32_t msg_index)
 
     MonitorBat_info monitor_para = monitor_para_arr[inv_index];
 
+    int8_t ret = ASW_FAIL;
+
     switch (msg_index)
     {
         // battery: set battery information
     case MSG_SET_BATTERY_INDEX:
-        handleMsg_setBattery_fun(inv_index, &monitor_para);
+        ret = handleMsg_setBattery_fun(inv_index, &monitor_para);
         break;
 
     // battery: set running mode
     case MSG_SET_RUN_MODE_INDEX:
-        handleMsg_setRunMode_fun(inv_index, &monitor_para);
+        ret = handleMsg_setRunMode_fun(inv_index, &monitor_para);
         break;
 
     // battery: set inverter charging / discharging
     case MSG_SET_CHARGE_INDEX:
-        handleMsg_setChange_fun(inv_index, &monitor_para);
+        ret = handleMsg_setChange_fun(inv_index, &monitor_para);
         break;
 
         // battery: set inverter power on/off
     case MSG_SET_POWER_INDEX:
-        handleMsg_setPower_fun(inv_index, &monitor_para);
+        ret = handleMsg_setPower_fun(inv_index, &monitor_para);
         break;
 
     case MSG_DSP_ZV_CLD_INDEX:
-        handleMsg_dspZvCld_fun(inv_index);
+        ret = handleMsg_dspZvCld_fun(inv_index);
         break;
 
     /** fresh setdefine of current day*/
     case MSG_GET_SAFETY_INDEX:
-        handleMsg_getSafty_fun();
+        ret = handleMsg_getSafty_fun();
         break;
 
     default:
         break;
     }
-    task_inv_msg_arr[inv_index] &= (~msg_index);
+    if (ret == ASW_OK)
+        task_inv_msg_arr[inv_index] &= (~msg_index);
     return 0;
 }
 
@@ -1156,8 +1270,9 @@ static int asw_battery_diff_schedule_manager(int mInvIndex)
 
     static uint64_t m_second_time_last = 0;
 
-    if (now_sec - m_second_time_last <= 1) // 1s调度一次
-        return 1;
+    // MARK TODO 这部分需要验证测试 多台的情况下是否有bug
+    //  if (now_sec - m_second_time_last <= 1) // 1s调度一次
+    //      return 1;
 
     Bat_Monitor_arr_t monitor_para = {0};
     read_global_var(PARA_CONFIG, &monitor_para);
@@ -1213,6 +1328,10 @@ static int asw_battery_diff_schedule_manager(int mInvIndex)
             }
         }
     }
+    // else
+    // {
+    //     sche_last_data_mode[mInvIndex - 1] = 0;
+    // }
 
     return 1;
 }
@@ -1266,6 +1385,8 @@ static int asw_battery_same_schedule_manager(void)
             ASW_LOGI(" same set monitor_para.adv.freq_mode = BATTERY_CHARGING_STOP\n");
             u16_lChargeValue = BATTERY_CHARGING_STOP;
             g_task_inv_broadcast_msg |= MSG_BRDCST_CHARGE_INDEX;
+
+            // printf("--- selfmode  battery is stop ,,,,, debug info....\n");
 
             return 0;
         }
@@ -1417,11 +1538,16 @@ int8_t setting_event_handler(void)
 
     if (g_battery_selfmode_is_same == 1)
     {
+
+        // printf("---- setdefine battery mode is same ------\n");
         if (asw_battery_same_schedule_manager() == 0)
             return 0;
     }
     else
     {
+        // printf("---- setdefine battery mode is not same ------\n");
+        // s_last_data_mode = 0;
+
         if (asw_battery_diff_schedule_manager(mIndex) == 0)
             return 0;
     }

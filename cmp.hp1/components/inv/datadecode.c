@@ -120,6 +120,20 @@ void md_decode_inv_data_content(uint8_t *packet, Inv_data *inv_data_ptr)
 #endif
 }
 
+///----------------------------------//
+void mc_decode_inv_hist_err(uint8_t* packet, uint16_t* histerr_ptr)
+{
+    *histerr_ptr = *packet << 8 | *(packet + 1);
+    *(histerr_ptr + 1) = *(packet + 2) << 8 | *(packet + 3);
+    *(histerr_ptr + 2) = *(packet + 4) << 8 | *(packet + 5);
+    *(histerr_ptr + 3) = *(packet + 6) << 8 | *(packet + 7);
+    *(histerr_ptr + 4) = *(packet + 8) << 8 | *(packet + 9);
+    *(histerr_ptr + 5) = *(packet + 10) << 8 | *(packet + 11);
+    *(histerr_ptr + 6) = *(packet + 12) << 8 | *(packet + 13);
+    *(histerr_ptr + 7) = *(packet + 14) << 8 | *(packet + 15);
+    *(histerr_ptr + 8) = *(packet + 16) << 8 | *(packet + 17);
+    *(histerr_ptr + 9) = *(packet + 18) << 8 | *(packet + 19);
+}
 //---------------------------------------//
 /*----------------------------------------------------------------------------*/
 /*! \brief  This function decode the received buffer for register read ID_Info command.

@@ -28,7 +28,12 @@ const char *update_page = "<html>"
                           "<title>固件升级</title>"
                           "</head>"
                           "<body>"
-                          "<h1>ESP32监控器固件升级</h1>"
+#if TRIPHASE_ARM_SUPPORT
+                          "<h1>ESP32-LanStick三相储能机监控器固件升级</h1>"
+
+#else
+                          "<h1>ESP32-LanStick单相储能机监控器固件升级</h1>"
+#endif
                           "<form action=\"/update.cgi\" enctype=\"multipart/form-data\" method=\"POST\" id=\"from1\"><input type=\"file\" "
                           "name=\"esp32app\" id=\"Img1\"><br><input id=\"q\" type=\"submit\"></form>"
                           "</body>"
@@ -215,7 +220,8 @@ static void wlanset_handler(httpd_req_t *req, http_req_para_t *para)
         if (json != NULL)
             cJSON_Delete(json);
         ASW_LOGW("Restart will....");
-        usleep(500 * 1000); // 500ms
+        // usleep(500 * 1000); // 500ms
+        sleep(5);
         esp_restart();
     }
     break;
@@ -327,7 +333,8 @@ static void setting_handler(httpd_req_t *req, http_req_para_t *para) //[tgl lan]
         if (json != NULL)
             cJSON_Delete(json);
         ASW_LOGW("Restart will....");
-        usleep(500 * 1000); // 500ms
+        // usleep(500 * 1000); // 500ms
+        sleep(5);
         esp_restart();
     }
     break;
@@ -432,8 +439,6 @@ static void debug_handler(httpd_req_t *req, http_req_para_t *para)
 
     getJsonNum(&device, "device", json);
     getJsonNum(&debug_print_value, "debug_value", json);
-
-  
 
     if (device == 666 && debug_print_value >= 0)
     {
@@ -784,7 +789,8 @@ static const http_req_tab_t http_post_tab[] = {
 //---------------------------------------------//
 Update_p update_info = NULL;
 
-#if !TRIPHASE_ARM_SUPPORT
+// #if !TRIPHASE_ARM_SUPPORT
+#if 0
 void update_info_gen(void)
 {
     char *head_ptr = NULL;
@@ -840,7 +846,7 @@ void update_info_gen(void)
     }
     printf("update_info->file_type: %d\n", update_info->file_type);
 }
-#else
+#endif
 
 /////////////////////////////////////////////
 /*     lanstick - updat.c               */
@@ -895,7 +901,7 @@ void update_info_gen(void)
     printf("update_info->file_type: %d\n", update_info->file_type);
 }
 
-#endif
+// #endif
 //================================================//
 //-----------------------get_handler----------------//
 static esp_err_t asw_get_handler(httpd_req_t *req)
@@ -924,30 +930,30 @@ static esp_err_t asw_get_handler(httpd_req_t *req)
             /* Get value of expected key from query string */
             if (httpd_query_key_value(buf, "sn", req_para.sn, sizeof(req_para.sn)) == ESP_OK)
             {
-                ASW_LOGI( "Found => sn=%s", req_para.sn);
+                ASW_LOGI("Found => sn=%s", req_para.sn);
             }
             if (httpd_query_key_value(buf, "device", req_para.device, sizeof(req_para.device)) == ESP_OK)
             {
-                ASW_LOGI( "Found => device=%s", req_para.device);
+                ASW_LOGI("Found => device=%s", req_para.device);
             }
             if (httpd_query_key_value(buf, "secret", req_para.secret, sizeof(req_para.secret)) == ESP_OK)
             {
-                ASW_LOGI( "Found => secret=%s", req_para.secret);
+                ASW_LOGI("Found => secret=%s", req_para.secret);
             }
             if (httpd_query_key_value(buf, "info", req_para.info, sizeof(req_para.info)) == ESP_OK)
             {
-                ASW_LOGI( "Found => info=%s", req_para.info);
+                ASW_LOGI("Found => info=%s", req_para.info);
             }
             if (httpd_query_key_value(buf, "filename", req_para.filename, sizeof(req_para.filename)) == ESP_OK)
             {
-                ASW_LOGI( "Found => filename=%s", req_para.filename);
+                ASW_LOGI("Found => filename=%s", req_para.filename);
             }
 
             ////////////////////////////////////////////////////////////
             char this_buf[10] = {0};
             if (httpd_query_key_value(buf, "date_day", this_buf, sizeof(this_buf)) == ESP_OK)
             {
-                ASW_LOGI( "Found => date_day=%s", this_buf);
+                ASW_LOGI("Found => date_day=%s", this_buf);
                 int num = -1;
                 int parsed = 0;
                 parsed = sscanf(this_buf, "%d", &num);
@@ -1069,22 +1075,49 @@ static esp_err_t asw_post_handler(httpd_req_t *req)
         free(p2p_str);
     }
 
-#if TRIPHASE_ARM_SUPPORT
-    /** 检查逆变器序列号 */                                                        //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-    char *inv_sn = NULL;                                                           //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-    int isn_len = httpd_req_get_hdr_value_len(req, "inv_sn");                      //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-    if (isn_len > 0)                                                               //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-    {                                                                              //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-        inv_sn = calloc(isn_len + 1, 1);                                           //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-        if (httpd_req_get_hdr_value_str(req, "inv_sn", inv_sn, isn_len) == ESP_OK) //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-        {                                                                          //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-                                                                                   // TODO 																					//增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-        }                                                                          //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-        free(p2p_str);                                                             //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-    }                                                                              //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
-    /** 检查接收multipart文件*/
-    content_type_len = httpd_req_get_hdr_value_len(req, "Content-Type") + 1;
-#endif
+    // #if TRIPHASE_ARM_SUPPORT
+    //     /** 检查逆变器序列号 */                                                        //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //     char *inv_sn = NULL;                                                           //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //     int isn_len = httpd_req_get_hdr_value_len(req, "inv_sn");                      //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //     if (isn_len > 0)                                                               //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //     {                                                                              //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //         inv_sn = calloc(isn_len + 1, 1);                                           //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //         if (httpd_req_get_hdr_value_str(req, "inv_sn", inv_sn, isn_len) == ESP_OK) //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //         {                                                                          //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //                                                                                    // TODO 																					//增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //         }                                                                          //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //         free(p2p_str);                                                             //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //     }                                                                              //增加http头的内容检查，检查点对点标识和逆变器序列号，这里cgi没给出，还要改，包括上面的函数，还要加一个获取指定的modbusid的方法
+    //     /** 检查接收multipart文件*/
+    //     content_type_len = httpd_req_get_hdr_value_len(req, "Content-Type") + 1;
+    // #endif
+
+    /////////////////////////////////////////////
+    /** 检查逆变器序列号 */
+    char *inv_sn = NULL;
+    int slave_id = 0;
+    int isn_len = httpd_req_get_hdr_value_len(req, "inv_sn");
+    if (isn_len > 0)
+    {
+        inv_sn = calloc(isn_len + 1, 1);
+        if (httpd_req_get_hdr_value_str(req, "inv_sn", inv_sn, isn_len) == ESP_OK)
+        {
+            for (uint8_t i = 0; i < g_num_real_inv; i++)
+            {
+                if (strcmp(inv_sn, cgi_inv_arr[i].regInfo.sn))
+                {
+                    slave_id = 3 + i;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            slave_id = 3;
+        }
+        free(inv_sn);
+    }
+    //////////////////////////////////////////////
 
     /** 检查接收multipart文件*/
 
@@ -1320,22 +1353,38 @@ static esp_err_t asw_post_handler(httpd_req_t *req)
                                     //        下面的逆变器master、slave、safety以及新的arm文件全部合并成升级逆变器，不再做区分*/
 
                                     /** inv update*/
-                                    else if (update_info->file_type > 0)
+                                    // else if (update_info->file_type > 0)
+                                    // {
+                                    //     fdbg_msg_t fdbg_msg = {0};
+                                    //     fdbg_msg.type = MSG_UPDATE_INV_MASTER;
+                                    //     httpd_resp_send(req, "update inverter begin", strlen("update inverter begin"));
+                                    //     // if (send_cgi_msg(30, update_info->file_path, strlen(update_info->file_path), NULL) == 0)
+                                    //     if (send_cgi_msg(30, 0, update_info->file_path, strlen(update_info->file_path), NULL) == 0)
+
+                                    //     {
+                                    //         printf("[ ok ] MSG_UPDATE_INV send to inv\n");
+                                    //     }
+                                    //     else
+                                    //     {
+                                    //         printf("[ err ] MSG_UPDATE_INV send to inv\n");
+                                    //     }
+                                    // }
+
+                                    /** ARMcommbox update*/
+                                    else if (update_info->file_type == 3)
                                     {
-                                        fdbg_msg_t fdbg_msg = {0};
-                                        fdbg_msg.type = MSG_UPDATE_INV_MASTER;
                                         httpd_resp_send(req, "update inverter begin", strlen("update inverter begin"));
-                                        // if (send_cgi_msg(30, update_info->file_path, strlen(update_info->file_path), NULL) == 0)
-                                        if (send_cgi_msg(30, 0, update_info->file_path, strlen(update_info->file_path), NULL) == 0)
+                                        if (send_cgi_msg(30, slave_id, update_info->file_path, strlen(update_info->file_path), NULL) == 0)
 
                                         {
-                                            printf("[ ok ] MSG_UPDATE_INV send to inv\n");
+                                            printf("[ ok ] MSG_UPDATE_ARMCOMMBOX send to inv\n");
                                         }
                                         else
                                         {
-                                            printf("[ err ] MSG_UPDATE_INV send to inv\n");
+                                            printf("[ err ] MSG_UPDATE_ARMCOMMBOX send to inv\n");
                                         }
                                     }
+
 #else
                                     /** master update*/
                                     else if (update_info->file_type == 1)

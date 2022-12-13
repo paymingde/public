@@ -17,6 +17,9 @@
 #define METER_CONTROL_KEY "meter_ctl_key"    // Lanstick-MultilInv
 #define NET_STATIC_INFO_KEY "net_static_key" // static  net info
 
+#define TMZ_NAME_SETFLG "tm_name_setflg"
+#define NET_TEST_CTRL_KEY "test_ctrl"
+
 //----------------------
 
 #define ATE_NAMESPACE "ate_namespace" //[tgl update] 新增版本
@@ -87,6 +90,7 @@ void factory_reset_nvs()
     general_delete(NVS_CONFIG);
     general_delete(NVS_SCHED_BAT);
     ///////////////////////////
+    // general_delete(NVS_TEST_CTRL);
 }
 
 //------------------------------------//
@@ -249,6 +253,18 @@ int8_t general_query(Enum_NVS_NameSpace type, void *p_data)
             my_handle = ate_nvs_handle;
             break;
 
+        case NVS_TM_ZONE_SETFLG:
+            memcpy(key, TMZ_NAME_SETFLG, strlen(TMZ_NAME_SETFLG));
+            blob_len = sizeof(int);
+            my_handle = ate_nvs_handle;
+            break;
+
+        case NVS_TEST_CTRL:
+            memcpy(key, NET_TEST_CTRL_KEY, strlen(NET_TEST_CTRL_KEY));
+            blob_len = sizeof(test_ctrl_t);
+            my_handle = ate_nvs_handle;
+            break;
+
         default:
             goto RES_ERR;
             break;
@@ -360,6 +376,16 @@ int8_t general_delete(int type)
             my_handle = ate_nvs_handle;
             break;
 
+        case NVS_TM_ZONE_SETFLG:
+            memcpy(key, TMZ_NAME_SETFLG, strlen(TMZ_NAME_SETFLG));
+            my_handle = ate_nvs_handle;
+            break;
+
+        case NVS_TEST_CTRL:
+            memcpy(key, NET_TEST_CTRL_KEY, strlen(NET_TEST_CTRL_KEY));
+            my_handle = ate_nvs_handle;
+            break;
+
         default:
             goto RES_ERR;
             break;
@@ -402,7 +428,7 @@ int8_t get_device_sn(void)
 
     if (strlen(para.psn) > 0)
     {
-        ASW_LOGI( "first get psn %s \n", para.psn);
+        ASW_LOGI("first get psn %s \n", para.psn);
         return ASW_OK;
     }
 
@@ -497,6 +523,18 @@ int8_t general_add(Enum_NVS_NameSpace type, void *p_data)
         case NVS_NET_STATIC_INFO:
             memcpy(key, NET_STATIC_INFO_KEY, strlen(NET_STATIC_INFO_KEY));
             blob_len = sizeof(net_static_info_t);
+            my_handle = ate_nvs_handle;
+            break;
+
+        case NVS_TM_ZONE_SETFLG:
+            memcpy(key, TMZ_NAME_SETFLG, strlen(TMZ_NAME_SETFLG));
+            blob_len = sizeof(int);
+            my_handle = ate_nvs_handle;
+            break;
+
+        case NVS_TEST_CTRL:
+            memcpy(key, NET_TEST_CTRL_KEY, strlen(NET_TEST_CTRL_KEY));
+            blob_len = sizeof(test_ctrl_t);
             my_handle = ate_nvs_handle;
             break;
 

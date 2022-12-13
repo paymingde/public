@@ -5,6 +5,7 @@ static const char *TAG = "estore_com.c";
 
 // Bat_arr_t g_bat_arr = {0}; /// Lanstick-MultiInv +
 
+
 int md_decode_bat_data(uint8_t *buf, int reg_num, Batt_data *bat_data_ptr)
 {
     uint32_t temp = 0;
@@ -226,21 +227,17 @@ void asw_read_bat_arr_data(Inverter *inv_ptr)
 
     if (res != 0)
     {
-        ESP_LOGW("-- Read Bat data Warn---", " return inv:%d-res:%d ",m_inv_md_id,res);
+        ESP_LOGW("-- Read Bat data Warn---", " return inv:%d-res:%d ", m_inv_md_id, res);
         return;
     }
 
     for (uint8_t k = 0; k < INV_NUM; k++)
     {
-
         // printf("g_bat_arr:%d:%s\n", k, mBatsArryDatas[k].sn);
         if (strcmp(mBatsArryDatas[k].sn, inv_ptr->regInfo.sn) == 0)
         {
-
             memcpy(&mBatsArryDatas[k].batdata, &data, sizeof(Batt_data));
-
             ASW_LOGI("Update data to g_bat_arr %s!!!", mBatsArryDatas[k].sn);
-
             break;
         }
     }

@@ -10,6 +10,8 @@ int connect_stage = 0;
 static int state_meter_last = 0; //[tgl mark add]
 int g_meter_sync = 0;
 
+static uint8_t sg_uMqttReconnectCount = 0;
+
 uint8_t inv_info_sync[30] = {0};
 EXT_RAM_ATTR Setting_Para ini_para = {0};
 
@@ -25,6 +27,12 @@ void clear_all_sync_info(void)
     g_monitor_state &= ~INV_SYNC_PMU_STATE;
     memset(inv_info_sync, 0, sizeof(inv_info_sync));
     g_meter_sync = 0;
+}
+
+void clear_inv_pmu_sync_info(void)
+{
+    g_monitor_state &= ~INV_SYNC_PMU_STATE;
+    memset(inv_info_sync, 0, sizeof(inv_info_sync));
 }
 
 int is_all_info_sync_ok(void)
@@ -127,7 +135,7 @@ TDCEvent gettime(void)
             sent_newmsg();
         }
 
-        ESP_LOGW("--GetTime--","gettime error\r\n");
+        ESP_LOGW("--GetTime--", "gettime error\r\n");
         return dcIdle;
     }
     else if (ptime.tm_year > 2019 && ptime.tm_year < 2050)
@@ -214,7 +222,7 @@ int get_time_manual(void)
     }
     else
     {
-        ESP_LOGW(TAG,"gettime ok but year error\n");
+        ESP_LOGW(TAG, "gettime ok but year error\n");
         return -1;
     }
 }
@@ -284,17 +292,40 @@ int mqtt_connect(void)
     /*
       Lan 模式下，无网络连接 ，AP模式下，不启用mqtt 连接
     */
-    if (g_stick_run_mode == Work_Mode_LAN && get_eth_connect_status() != 0)
+    if ((g_stick_run_mode == Work_Mode_LAN && get_eth_connect_status() != 0) || (g_stick_run_mode == Work_Mode_STA && get_wifi_sta_connect_status() != 0))
         return dcalilyun_authenticate;
 
     if (g_stick_run_mode == Work_Mode_AP_PROV)
         return dcalilyun_authenticate;
+
+    if (asw_mqtt_reconncet() == ESP_OK)
+    {
+        ESP_LOGI("--DEBUG MQTT CONNECT--", "mqtt reconnect is ok. %d", sg_uMqttReconnectCount);
+
+        if (sg_uMqttReconnectCount++ > 10)
+        {
+            sg_uMqttReconnectCount = 0;
+            ESP_LOGW("--DEBUG MQTT CONNECT--", "mqtt reconnect is  count is > 10, mqtt destory ...");
+            mqtt_client_destroy_free();
+        }
+        else
+        {
+            return dcalilyun_publish;
+        }
+    }
+    // else
+    // {
+
+    //     ESP_LOGW("--DEBUG MQTT CONNECT--", "mqtt reconnect is failed , mqtt destory ...");
+    //     sg_uMqttReconnectCount = 0;
+    //     mqtt_client_destroy_free();
+    // }
+
     if ((get_eth_connect_status() == 0 || get_wifi_sta_connect_status() == 0) && 0 == mqtt_app_start()) //网络连接成功状态下 去启动mqtt client
     {
         connect_stage = 2;
-
         ASW_LOGI("\n=====DEBUG PRIntf ====\n=====eth connect status:%d,wifi connect status:%d=======   conncet stage :%d ============\n",
-               get_eth_connect_status(), get_wifi_sta_connect_status(), connect_stage);
+                 get_eth_connect_status(), get_wifi_sta_connect_status(), connect_stage);
         return dcalilyun_publish;
     }
     else
@@ -304,14 +335,18 @@ int mqtt_connect(void)
         mqtt_create_fail++;
         if (get_second_sys_time() - mqtt_create_fail_time > 600) // esp_timer_get_time() - mqtt_create_fail_time > 300 * 1000000)
         {
-
-            // set_resetnet_reboot();[tgl change]
-            net_com_reboot_flg = 1;
+            net_com_reboot_flg = 1; // reboot
         }
         network_log("mq recon er");
+
+        // if ((g_stick_run_mode == Work_Mode_LAN && get_eth_connect_status() != 0) ||
+        //     (g_stick_run_mode == Work_Mode_STA && get_wifi_sta_connect_status() != 0))
+        // {
+        ESP_LOGE(TAG, "mqtt app start err and local net is disconnect ,destroy mqtt client...");
+        mqtt_client_destroy_free(); // tgl add +++
+        // }
         sleep(16);
 
-        mqtt_client_destroy_free(); //tgl add +++
         return dcalilyun_authenticate;
     }
 }
@@ -336,7 +371,7 @@ void Check_upload_sint16(const char *field, uint16_t value, char *body, int *dat
 }
 
 //---------------------------------//
-static void mqtt_msg1_syncpmu_state_fun(char *payload)
+static int mqtt_msg1_syncpmu_state_fun(char *payload)
 {
     wifi_ap_para_t ap_para_tmp = {0};
     general_query(NVS_AP_PARA, &ap_para_tmp);
@@ -395,14 +430,17 @@ static void mqtt_msg1_syncpmu_state_fun(char *payload)
     {
         ASW_LOGI("[ asw_publish ] pmu info\n");
         g_monitor_state |= INV_SYNC_PMU_STATE;
+
+        return ASW_OK;
     }
+    else
+        return ASW_FAIL;
 }
 
 //////////////////////////////////////////////
 
 //---------------------------------------------//
 
-// int mqtt_publish(int flag, Inv_data invdata, int *lost_flag)
 int mqtt_publish(char *json_msg)
 {
 
@@ -419,7 +457,7 @@ int mqtt_publish(char *json_msg)
     static int ncout = 0;
     static int inv_sync_num = 0;
     static int publish_fail = 0;
-    int publish_fail_time = 0;
+    int64_t publish_fail_time = 0;
 
     // Eng.Stg.Mch-lanstick +
     MonitorPara monitor_para = {0};
@@ -428,8 +466,6 @@ int mqtt_publish(char *json_msg)
     char brand[16] = {0};
     char name[16] = {0};
 
-    //   v2.0.0 change
-    // if (get_eth_connect_status() != 0 && get_wifi_sta_connect_status() != 0)
     if ((g_stick_run_mode == Work_Mode_LAN && get_eth_connect_status() != 0) ||
         (g_stick_run_mode == Work_Mode_STA && get_wifi_sta_connect_status() != 0))
     {
@@ -439,105 +475,61 @@ int mqtt_publish(char *json_msg)
         if (get_second_sys_time() - publish_fail_time > 200) // 200
         {
             publish_fail_time = get_second_sys_time();
-
+            ESP_LOGW(TAG, " net is disconnect , will destroy mqtt client.");
             mqtt_client_destroy_free();
             return dcalilyun_authenticate;
         }
         goto END;
     }
 
-    /*recv message from subscribe*/
+    /**
+     * @brief 同步stick信息
+     **/
     if (0 == (g_monitor_state & INV_SYNC_PMU_STATE))
     {
-        mqtt_msg1_syncpmu_state_fun(payload);
+        if (mqtt_msg1_syncpmu_state_fun(payload) != ASW_OK)
+            return dcalilyun_authenticate;
     }
     memset(payload, 0, sizeof(payload));
 
+    /**
+     * @brief 同步逆变器信息
+     */
     if ((g_monitor_state & INV_SYNC_PMU_STATE) && !inv_info_sync[29])
     {
-
-        if (!inv_info_sync[inv_sync_num] && cld_inv_arr[inv_sync_num].regInfo.modbus_id > 0 
-        && strlen(cld_inv_arr[inv_sync_num].regInfo.sn) > 0 
-        && strlen(inv_arr[inv_sync_num].regInfo.msw_ver) > 0 
-        && strlen(cld_inv_arr[inv_sync_num].regInfo.msw_ver) > 0 // mark add by tgl
-
-        )
+        if (!inv_info_sync[inv_sync_num] && cld_inv_arr[inv_sync_num].regInfo.modbus_id > 0 && strlen(cld_inv_arr[inv_sync_num].regInfo.sn) > 0 && strlen(inv_arr[inv_sync_num].regInfo.msw_ver) > 0 && strlen(cld_inv_arr[inv_sync_num].regInfo.msw_ver) > 0)
         {
             // memcpy(&devicedata, &(cld_inv_arr[inv_sync_num].regInfo), sizeof(InvRegister));
             memcpy(&devicedata, &(cld_inv_arr[inv_sync_num].regInfo), sizeof(InvRegister));
             if (strlen(devicedata.sn) > 0)
             {
-
                 ASW_LOGI("\n-------mqtt_publish------\n  ");
-                ASW_LOGI(" the mach type:%d\n", devicedata.mach_type); // Eng.Stg.Mch-lanstick
-                if (devicedata.mach_type >= 11)                      /** 是储能机*/
-                {
-                    get_estore_invinfo_payload(devicedata, payload);
-                }
-                else
-                { ///////////////////////////////////////////////////////
-                    sprintf(payload, "{\"Action\":\"SyncInvInfo\","
-                                     "\"psn\":\"%s\","
-                                     "\"typ\":\"%d\","
-                                     "\"sn\":\"%s\","
-                                     "\"mod\":\"%s\","
-                                     "\"sft\":\"%d\","
-                                     "\"rtp\":\"%d\","
-                                     "\"mst\":\"%s\","
-                                     "\"slv\":\"%s\","
-                                     "\"sfv\":\"%s\","
-                                     "\"cmv\":\"%s\","
-                                     "\"muf\":\" %s\","
-                                     "\"brd\":\"%s\","
-                                     "\"mty\":\"%d\","
-                                     "\"MPT\":\"%d\","
-                                     "\"str\":\"%d\","
-                                     //"\"phs\":\"%d\","
-                                     "\"Imc\":\"%d\"}",
-                            DEMO_DEVICE_NAME,
-                            devicedata.type,
-                            devicedata.sn,
-                            devicedata.mode_name,
-                            devicedata.safety_type,
-                            devicedata.rated_pwr,
-                            devicedata.msw_ver,
-                            devicedata.ssw_ver,
-                            devicedata.tmc_ver,
-                            devicedata.protocol_ver,
-                            devicedata.mfr,
-                            devicedata.brand,
-                            devicedata.mach_type,
-                            devicedata.pv_num,
-                            devicedata.str_num,
-                            //"machine type",
-                            devicedata.modbus_id);
-                    ////////////////////////////////////////////////////////
-                }
+                get_estore_invinfo_payload(devicedata, payload);
                 ASW_LOGI("PUB  %s inv info**************\n", payload);
-
                 if (asw_publish(payload) > -1)
                 {
                     inv_info_sync[inv_sync_num] = 1;
                     ASW_LOGI("[ asw_publish ] %d inv info\n", inv_sync_num);
+
+                    inv_sync_num++; // tgl mark
                 }
                 else
                 {
-                    ///// TGL Mark TODO  publish失败超过3次，进入重新连接mqtt
-
                     ESP_LOGE("---  MARK ERROR---", "publish is erro , need to reconnect to mqtt");
+                    return dcalilyun_authenticate;
                 }
-
                 memset(payload, 0, sizeof(payload));
             }
             else
             {
-                // inv_info_sync[inv_sync_num] = 1;
                 ESP_LOGW(TAG, "############%s--SN ERROR isn't 16 numerics or letters\n", devicedata.sn);
             }
+            // inv_sync_num++;
+        } // inv_sync_num++;
 
-            inv_sync_num++;
-        }
-        // inv_sync_num++;
+        printf("\n----------test debug A-----------\n");
+        printf("inv_sync_num :%d ,g_num_real_inv:%d", inv_sync_num, g_num_real_inv);
+        printf("\n----------test debug A-----------\n");
 
         if ((inv_sync_num >= g_num_real_inv))
         {
@@ -552,6 +544,10 @@ int mqtt_publish(char *json_msg)
                 }
             }
 
+            printf("\n----------test debug B-----------\n");
+            printf("j:%d ,g_num_real_inv:%d", j, g_num_real_inv);
+            printf("\n----------test debug B-----------\n");
+
             if (j && j >= g_num_real_inv)
             {
                 ASW_LOGI("all invter info upload\n");
@@ -560,49 +556,30 @@ int mqtt_publish(char *json_msg)
         }
     }
     memset(payload, 0, sizeof(payload));
-
-
-    // if (monitor_para.adv.meter_enb!= 0 && g_meter_sync == 0)  //[tgl mark add 電表狀態發生改變，同步信息]
+    /**
+     * @brief 同步电表信息
+     **/
     if (monitor_para.adv.meter_enb != state_meter_last || g_meter_sync == 0)
     {
 
         memset(brand, 0, sizeof(brand));
         memset(name, 0, sizeof(name));
-
         get_meter_info(monitor_para.adv.meter_mod, brand, name);
-
-        /* Eng.Stg.Mch-lanstick 20220908 */
-        if (is_cld_has_estore())
-        {
-            /** 含有储能机*/
-            get_estore_meterinfo_payload(payload);
-        }
-        else
-        {
-            sprintf(payload, "{\"Action\":\"SyncMeterInfo\",\"psn\":\"%s\",\"sn\":\"%s%s\","
-                             "\"typ\":\"%d\",\"model\":\"%d\",\"nam\":\"%s\",\"enb\":%d,\"exp_m\":%d,\"regulate\":%d}",
-                    DEMO_DEVICE_NAME, brand, DEMO_DEVICE_NAME, 1, monitor_para.adv.meter_mod, name,
-                    monitor_para.adv.meter_enb,
-                    monitor_para.adv.meter_target,
-                    monitor_para.adv.meter_regulate);
-        }
-
+        /** 含有储能机*/
+        get_estore_meterinfo_payload(payload);
         if (asw_publish(payload) >= 0)
-        {
-            // pcout++;
+        { // pcout++;
             g_meter_sync = 1;
             state_meter_last = monitor_para.adv.meter_enb;
         }
         else
-        {
-            ///// TGL Mark TODO  publish失败超过3次，进入重新连接mqtt
+        { ///// TGL Mark TODO  publish失败超过3次，进入重新连接mqtt
             ESP_LOGE("--- TGL MARK ERROR---", "publish is erro , need to reconnect to mqtt");
+            return dcalilyun_authenticate;
         }
     }
     memset(payload, 0, sizeof(payload));
-
     /////////////////////////////// Eng.Stg.Mch-Lanstick /////////////////////////////
-
     char this_msg[JSON_MSG_SIZE] = {0};
     /** 实时数据*/
     if (strlen(json_msg) > 0)
@@ -613,15 +590,15 @@ int mqtt_publish(char *json_msg)
     else
     {
         read_hist_payload(this_msg);
+        set_payload_to_hist(this_msg);
     }
-
     /* 发布实时数据（历史数据）*/
     if (strlen(this_msg) > 0)
     {
         int pub_res = asw_publish(this_msg);
         int chk_res = -100;
         int read_pub_ack_time = get_second_sys_time();
-        while ((get_second_sys_time() - read_pub_ack_time) < 5)
+        while ((get_second_sys_time() - read_pub_ack_time) < 10)
         {
             if (pub_res == get_mqtt_pub_ack())
             {
@@ -631,7 +608,8 @@ int mqtt_publish(char *json_msg)
             }
             usleep(20 * 1000);
         }
-        ASW_LOGI("time leasp %lld pub ack %d %d \n", (get_second_sys_time() - read_pub_ack_time), pub_res, get_mqtt_pub_ack());
+        if (g_asw_debug_enable == 1)
+            ESP_LOGI(TAG, "time leasp %lld pub ack %d %d \n", (get_second_sys_time() - read_pub_ack_time), pub_res, get_mqtt_pub_ack());
 
         if (chk_res == 1)
         {
@@ -649,33 +627,29 @@ int mqtt_publish(char *json_msg)
             }
 
             ASW_LOGI("publish inv data ok\n");
-            publish_fail = 0;
-            // pcout++;
+            publish_fail = 0; // pcout++;
             netework_state = 0;
+            sg_uMqttReconnectCount = 0;
+            //   g_state_mqtt_connect = 0;  //will test just for test
         }
         else
         {
-            ESP_LOGW(TAG,"publish data fail\n");
-            // write_to_log("publish invinfo faild");
+            ESP_LOGW(TAG, "publish data fail\n");
             if (!publish_fail)
                 publish_fail_time = esp_timer_get_time();
             publish_fail++;
-
-            if (esp_timer_get_time() - publish_fail_time > 200 * 1000000)
+            if (esp_timer_get_time() - publish_fail_time > 200 * 1000000) //&& publish_fail > 100)
             {
-                // write_to_log("publish faild 3 mins exit");
-                // exit(-3);
-                ESP_LOGW(TAG,"============== mqtt_client_destroy_free will be called ==============");
-                mqtt_client_destroy_free();
+                ESP_LOGW(TAG, "==============mqtt state:%d, mqtt_client_reconnect will be called ,==============", asw_get_mqtt_state());
+                // mqtt_client_destroy_free();
                 return dcalilyun_authenticate;
             }
             sleep(2);
         }
     }
-    ////////////////////////////////////////////////////////////
-
 END:
-    sleep(1);
+    sleep(3);
+
     return dcalilyun_publish;
 }
 
@@ -695,7 +669,7 @@ int trans_resrrpc_pub(cloud_inv_msg *resp, unsigned char *ws, int len) //[tgl ma
 
     if (0 != asw_mqtt_publish(rrpc_res_topic, (char *)payload, strlen(payload), 0)) // res scan(payload))
     {
-        ESP_LOGW(TAG,"[err] publish trans resp\n");
+        ESP_LOGW(TAG, "[err] publish trans resp\n");
 
         return -1;
     }

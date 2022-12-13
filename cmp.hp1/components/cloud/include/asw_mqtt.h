@@ -82,4 +82,7 @@ void asw_mqtt_client_stop(void);
 void setting_new_server(cJSON *body);
 
 int get_rrpc_restopic(char *rpc_topic, int rpc_len, char *response_topic);
+
+int asw_mqtt_reconncet();
+int asw_get_mqtt_state();
 #endif

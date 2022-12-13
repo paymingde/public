@@ -347,18 +347,20 @@ int8_t md_decode_meter_pack(char is_fast, uint8_t type, uint8_t *buf, uint16_t l
     //电表数据读取时间
     char timeRdMeter[32] = {0};
     get_time(timeRdMeter, sizeof(timeRdMeter));
-    fileter_time(timeRdMeter, m_inv_meter.invdata.time);  
+    fileter_time(timeRdMeter, m_inv_meter.invdata.time);
 
     /************************* 计算当日买卖电量 ****************************************/
 
-    write_global_var(GLOBAL_METER_DATA, &m_inv_meter);
-
     if (is_fast == 1) /** 如果没有读到总买卖电量*/
     {
+        write_global_var(GLOBAL_METER_DATA, &m_inv_meter);
+
         return ASW_OK;
     }
     if (is_time_valid() == 0) /** 系统时间不对，不计算当日发电量*/
     {
+        write_global_var(GLOBAL_METER_DATA, &m_inv_meter);
+
         return ASW_OK;
     }
 
@@ -423,18 +425,19 @@ int8_t md_decode_meter_pack(char is_fast, uint8_t type, uint8_t *buf, uint16_t l
 
     write_global_var(GLOBAL_METER_DATA, &m_inv_meter);
 
-    if (get_second_sys_time() - meter_data_time >= 300)
-    {
-        meter_data_time = get_second_sys_time();
-        if (mq2 != NULL)
-        {
-            xQueueSend(mq2, (void *)&m_inv_meter, (TickType_t)0);
-            ASW_LOGI("meter data send cld ok\n");
-        }
-        // msgsnd(meter_msg_id, &trans_meter_cloud, sizeof(trans_meter_cloud.data), IPC_NOWAIT);
-        return ASW_OK;
-    }
+    // if (get_second_sys_time() - meter_data_time >= 300)
+    // {
+    //     meter_data_time = get_second_sys_time();
+    //     if (mq2 != NULL)
+    //     {
+    //         xQueueSend(mq2, (void *)&m_inv_meter, (TickType_t)0);
+    //         // ASW_LOGI("meter data send cld ok\n");
+    //         ESP_LOGI("Meter DEBUG ....","meter data send cld ok\n");
+    //     }
+    //     // msgsnd(meter_msg_id, &trans_meter_cloud, sizeof(trans_meter_cloud.data), IPC_NOWAIT);
+    //     return ASW_OK;
+    // }
 
-    else
-        return ASW_OK;
+    // else
+    return ASW_OK;
 }

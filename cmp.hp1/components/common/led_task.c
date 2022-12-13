@@ -217,8 +217,8 @@ void led_task(void *pvParameters)
                         network_log(",[ok] ap on");
                     }
                 }
-                //重连 3s间隔
-                if (g_stick_run_mode == Work_Mode_STA && re_conn > 300)
+                //重连 30s间隔
+                if (g_stick_run_mode == Work_Mode_STA && re_conn > 3000)
                 {
                     check_wifi_reconnect();
                     re_conn = 0;

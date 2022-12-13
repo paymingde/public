@@ -82,7 +82,7 @@ int get_estore_invinfo_payload(InvRegister devicedata, char *json_str)
     cJSON_AddStringToObject(res, "Action", "SyncInvInfo");
     cJSON_AddStringToObject(res, "psn", DEMO_DEVICE_NAME);
     cJSON_AddStringToObject(res, "sn", devicedata.sn);
-    cJSON_AddNumAsStrToObject(res, "typ", devicedata.type);
+    cJSON_AddNumAsStrToObject(res, "typ", devicedata.type - 0x30);
     cJSON_AddStringToObject(res, "mod", devicedata.mode_name);
     cJSON_AddStringToObject(res, "muf", devicedata.mfr);
     cJSON_AddStringToObject(res, "brd", devicedata.brand);
@@ -141,14 +141,18 @@ int get_estore_invinfo_payload(InvRegister devicedata, char *json_str)
 #endif
             host_status = 1;
         else
-            host_status = 0;
+            host_status = 2;
     }
     else
     {
-        host_status = 99;
+        host_status = 0;
     }
 
     cJSON_AddNumberToObject(res, "host", host_status);
+
+#if TRIPHASE_ARM_SUPPORT
+    cJSON_AddStringToObject(res, "lsw", inv_arr[mindex].reginfo.csw_ver);
+#endif
 
     ////////////////////////////////////////////////////
 
@@ -218,6 +222,10 @@ int get_estore_invdata_payload(Inv_data *inv, char *json_str)
     cJSON_AddNumberToObject(res, "tmstp", (double)inv->rtc_time * 1000); // ms
     cJSON_AddNumberToObject(res, "stu", inv->status);
     cJSON_AddStringToObject(res, "tim", inv->time);
+    if (inv->data_type != INVDATA_TYPE_RT && inv->data_type != INVDATA_TYPE_TEST)
+        inv->data_type = INVDATA_TYPE_TEST;
+    cJSON_AddNumberToObject(res, "data_type", inv->data_type);
+
     cJSON_AddNumberToObject(res, "csq", get_rssi());
     cJSON_AddNumberToObject(res, "itv", GetMinute1((inv->time[11] - 0x30) * 10 + inv->time[12] - 0x30, (inv->time[14] - 0x30) * 10 + inv->time[15] - 0x30, 0));
     /** add arrays: */
@@ -226,8 +234,17 @@ int get_estore_invdata_payload(Inv_data *inv, char *json_str)
     cJSON *ipv = cJSON_AddArrayToObject(res, "ipv");
     cJSON *vac = cJSON_AddArrayToObject(res, "vac");
     cJSON *iac = cJSON_AddArrayToObject(res, "iac");
+
+#if TRIPHASE_ARM_SUPPORT
+    cJSON *pac_array = cJSON_AddArrayToObject(res, "pac_array");
+    cJSON *qac_array = cJSON_AddArrayToObject(res, "qac_array");
+
+#endif
+
+    cJSON *str = cJSON_AddArrayToObject(res, "str");
     cJSON *bat = cJSON_AddArrayToObject(res, "bat");
     cJSON *eps = cJSON_AddArrayToObject(res, "EPS");
+    cJSON *history_array = cJSON_AddArrayToObject(res, "history_array");
     cJSON *meter = cJSON_AddArrayToObject(res, "meter");
 
     /** general: */
@@ -283,9 +300,26 @@ int get_estore_invdata_payload(Inv_data *inv, char *json_str)
                 cJSON_AddNumberToObject(iac, "", round((double)inv->AC_vol_cur[j].iCur));
             }
         }
+        ASW_LOGI("the str num:%d", cld_inv_arr[idx].regInfo.str_num);
+        for (uint8_t j = 0; j < cld_inv_arr[idx].regInfo.str_num; j++)
+        {
+            if ((inv->istr[j] != 0xFFFF))
+            {
+                cJSON_AddNumberToObject(str, "", round((double)inv->istr[j]));
+            }
+        }
     }
+
+    /// history_array
+    for (uint8_t k = 0; k < 10; k++)
+    {
+        cJSON_AddNumberToObject(history_array, "", inv->hist_err[k]);
+    }
+
     //////////////////////   LanStick-MultilInv /////////////////////////////////psn
     Bat_arr_t m_battery_arr_data = {0};
+    Bat_Monitor_arr_t monitor_para = {0};
+    read_global_var(PARA_CONFIG, &monitor_para);
     read_global_var(GLOBAL_BATTERY_DATA, &m_battery_arr_data);
 
     int mInvIndex = -1;
@@ -316,6 +350,12 @@ int get_estore_invdata_payload(Inv_data *inv, char *json_str)
     cJSON_AddNumberToObject(bat, "", round((double)m_battery_arr_data[mInvIndex].batdata.SOH_batt));
     cJSON_AddNumberToObject(bat, "", round((double)m_battery_arr_data[mInvIndex].batdata.etd_in_batt));
     cJSON_AddNumberToObject(bat, "", round((double)m_battery_arr_data[mInvIndex].batdata.etd_out_batt));
+    //电池通讯状态
+    cJSON_AddNumberToObject(bat, "", m_battery_arr_data[mInvIndex].batdata.status_comm_batt);
+    //电池充电限流值
+    cJSON_AddNumberToObject(bat, "", monitor_para[mInvIndex].batmonitor.chg_max);
+    //电池放电限流值
+    cJSON_AddNumberToObject(bat, "", monitor_para[mInvIndex].batmonitor.dchg_max);
 
     /** eps: */
     cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.v_EPS_batt));
@@ -326,6 +366,24 @@ int get_estore_invdata_payload(Inv_data *inv, char *json_str)
     cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.etd_EPS_batt));
     cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.eto_EPS_batt));
     //////////////////////////////////////////////////////////////////////////////
+
+#if TRIPHASE_ARM_SUPPORT
+    for (uint8_t i = 0; i < 3; i++)
+    {
+
+        /* TRI esp*/
+        cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.v_i_phase_ESP[i].iVol));
+        cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.v_i_phase_ESP[i].iCur));
+        cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.v_i_phase_ESP[i].pac));
+        cJSON_AddNumberToObject(eps, "", round((double)m_battery_arr_data[mInvIndex].batdata.v_i_phase_ESP[i].qac));
+        /* TRI pac_array */
+        cJSON_AddNumberToObject(pac_array, "", round((double)m_battery_arr_data[mInvIndex].batdata.p_q_phase_AC[i].pac));
+
+        /* TRI qac_array */
+        cJSON_AddNumberToObject(qac_array, "", round((double)m_battery_arr_data[mInvIndex].batdata.p_q_phase_AC[i].qac));
+    }
+
+#endif
 
     /** meter: */
     char msn[40] = {0};
@@ -372,6 +430,7 @@ void get_meter_mfr_and_model(char *mfr, char *model)
 int asw_write_inv_onoff(cJSON *json)
 {
     int setpower = 0;
+    int setonoff = 0;
 
     int broadcastEnable = 0;
     Bat_Monitor_arr_t monitor_para = {0};
@@ -403,6 +462,14 @@ int asw_write_inv_onoff(cJSON *json)
         index = 0;
         ESP_LOGW("-- rrpc setpower--", " set power Erro, found no inv  with psn:%s.", crt_psn);
     }
+
+    MonitorPara monitor_config_para = {0};
+
+    read_global_var(METER_CONTROL_CONFIG, &monitor_config_para);
+    if (monitor_config_para.is_parallel)
+    {
+        broadcastEnable = 1;
+    }
     //////////////////////////////////////////////
 
     if (getJsonNum(&setpower, "power", json) == 0)
@@ -415,7 +482,8 @@ int asw_write_inv_onoff(cJSON *json)
                 monitor_para[m].batmonitor.uu4 = setpower;
             }
 
-            write_global_var(PARA_CONFIG, &monitor_para);
+            // write_global_var(PARA_CONFIG, &monitor_para);
+            write_global_var_to_nvs(PARA_CONFIG, &monitor_para);
 
             g_task_inv_broadcast_msg |= MSG_BRDCST_SET_POWER_INDEX;
         }
@@ -423,28 +491,36 @@ int asw_write_inv_onoff(cJSON *json)
         {
             monitor_para[index].batmonitor.uu4 = setpower;
 
-            write_global_var(PARA_CONFIG, &monitor_para);
+            // write_global_var(PARA_CONFIG, &monitor_para);
+            write_global_var_to_nvs(PARA_CONFIG, &monitor_para);
 
             task_inv_msg_arr[index] |= MSG_SET_POWER_INDEX;
         }
 
-        if (setpower == 2)
-            event_group_0 |= SYNC_ALL_ONCE; // turn on
+        // if (setpower == 2)
+        //     event_group_0 |= SYNC_ALL_ONCE; // turn on
 
-        return ASW_OK;
+        // return ASW_OK;
 
         // asw_mqtt_publish(resp_topic, recv_ok, strlen(recv_ok), 0);
     }
-    else
+    // else
+    // {
+    //     return ASW_FAIL;
+    //     // asw_mqtt_publish(resp_topic, recv_er, strlen(recv_er), 0);
+    // }
+
+    if (setpower == 2 || setonoff == 1)
     {
-        return ASW_FAIL;
-        // asw_mqtt_publish(resp_topic, recv_er, strlen(recv_er), 0);
+        event_group_0 |= SYNC_ALL_ONCE; // turn on
     }
+    return ASW_OK;
 }
 //////////////// Lanstick-MultilInv //////////////////////
 int write_battery_configuration(cJSON *setbattery)
 {
     int num = -1;
+    int tmpint = 0;
     uint16_t b_info = 0;
     int index = -1;
     Bat_Monitor_arr_t monitor_para = {0};
@@ -457,7 +533,7 @@ int write_battery_configuration(cJSON *setbattery)
     int mdchg_max = 0, mchg_max = 0;
 
     // printf("\n============= write_battery_configuration=====[%s] \n", crt_psn);
-#if 0
+#if 1
     if (strcmp(crt_psn, "broadcast") == 0)
     {
         // broadcastEnable = 1;
@@ -493,10 +569,10 @@ int write_battery_configuration(cJSON *setbattery)
         ////////////////////////////////////////////////////////
 
         //////////////////////////////////////////////////////
-        printf("\n-----------broadcast set battery para --------------\n");
-        printf("g_real_num:%d, type:%d,uu1:%d,up1:%d,uu2:%d,up2:%d,dchg_max:%d,chg_max:%d",
-               g_num_real_inv, mdc_per, muu1, mup1, muu2, mup2, mdchg_max, mchg_max);
-        printf("\n-----------broadcast set battery para --------------\n");
+        ASW_LOGI("\n-----------broadcast set battery para --------------\n");
+        ASW_LOGI("g_real_num:%d, type:%d,uu1:%d,up1:%d,uu2:%d,up2:%d,dchg_max:%d,chg_max:%d",
+                 g_num_real_inv, mdc_per, muu1, mup1, muu2, mup2, mdchg_max, mchg_max);
+        ASW_LOGI("\n-----------broadcast set battery para --------------\n");
 
         for (uint8_t m = 0; m < g_num_real_inv; m++)
         {
@@ -529,9 +605,11 @@ int write_battery_configuration(cJSON *setbattery)
         else
             index = asw_get_index_byPsn(crt_psn);
 
-        getJsonNum(&monitor_para[index].batmonitor.dc_per, "type", setbattery);
+        getJsonNum(&tmpint, "type", setbattery);
+        monitor_para[index].batmonitor.dc_per = tmpint;
 
-        getJsonNum(&monitor_para[index].batmonitor.uu1, "mod_r", setbattery);
+        getJsonNum(&tmpint, "mod_r", setbattery);
+        monitor_para[index].batmonitor.uu1 = tmpint;
 
         //// 判断是否为自定义模式 并机模式下，主机设置为自定义模式，则发送到主机;普通模式下
         //    g_battery_selfmode_is_same, g_parallel_enable, g_host_modbus_id);
@@ -568,16 +646,19 @@ int write_battery_configuration(cJSON *setbattery)
 
         //--------------------------------------//
 
-        if (getJsonNum(&monitor_para[index].batmonitor.up1, "muf", setbattery) == 0)
+        if (getJsonNum(&tmpint, "muf", setbattery) == 0)
         {
+            monitor_para[index].batmonitor.up1 = tmpint;
             b_info = 1;
         }
-        if (getJsonNum(&monitor_para[index].batmonitor.uu2, "mod", setbattery) == 0)
+        if (getJsonNum(&tmpint, "mod", setbattery) == 0)
         {
+            monitor_para[index].batmonitor.uu2 = tmpint;
             b_info = 1;
         }
-        if (getJsonNum(&monitor_para[index].batmonitor.up2, "num", setbattery) == 0)
+        if (getJsonNum(&tmpint, "num", setbattery) == 0)
         {
+            monitor_para[index].batmonitor.up2 = tmpint;
             b_info = 1;
         }
 
@@ -920,6 +1001,7 @@ int parse_estore_mqtt_msg_rrpc(char *rpc_topic, int rpc_len, void *payload, int 
 
         char buffer[1536] = {0};
         read_battery_define(day_idx, buffer);
+        printf("\n---- debug printf: getdefine:%s\n",buffer);
         asw_mqtt_publish(resp_topic, buffer, strlen(buffer), 0);
     }
     else if (cJSON_HasObjectItem(json, "drm") == 1)
@@ -975,6 +1057,32 @@ int parse_estore_mqtt_msg_rrpc(char *rpc_topic, int rpc_len, void *payload, int 
             asw_mqtt_publish(resp_topic, recv_er, strlen(recv_er), 0);
         }
     }
+    else if (cJSON_HasObjectItem(json, "testmode") == 1) ///// MARK-20221122
+    {
+        int x_value = -1;
+        int x_keeptime = -1;
+        test_ctrl_t ctrl = {0};
+
+        cJSON *item = cJSON_GetObjectItem(json, "testmode");
+
+        getJsonNum(&x_value, "value", item);
+        getJsonNum(&x_keeptime, "keeptime", item);
+
+        if (x_value == 0 || x_value == 1)
+        {
+            ctrl.on = x_value;
+        }
+
+        if (x_keeptime >= 0 && is_time_valid() == 1 && x_value == 1)
+        {
+            get_time_by_sec_later(ctrl.deadline, sizeof(ctrl.deadline), x_keeptime);
+        }
+
+        write_global_var_to_nvs(GLOBAL_TEST_CTRL, &ctrl);
+
+        asw_mqtt_publish(resp_topic, (char *)recv_ok, strlen(recv_ok), 0);
+    }
+
     else if (cJSON_HasObjectItem(json, "fdbg") == 1 && strlen(cJSON_GetObjectItem(json, "fdbg")->valuestring) > 5)
     {
         char ws[65] = {0};
@@ -1076,6 +1184,7 @@ int parse_estore_mqtt_msg_rrpc(char *rpc_topic, int rpc_len, void *payload, int 
         /*根据调试打印设置值，判断是否进行数据打印*/
         if (g_asw_debug_enable > 1)
             event_group_0 |= METER_CONFIG_MASK;
+        task_inv_meter_msg |= MSG_PWR_ACTIVE_INDEX;  /// debug tgl mark
     }
     /** K60中没有的********************************************************************************************/
     else if (cJSON_HasObjectItem(json, "setscan") == 1 && cJSON_GetObjectItem(json, "setscan")->valueint > 0)

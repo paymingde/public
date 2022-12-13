@@ -236,6 +236,10 @@ int get_mqtt_pub_ack(void)
     return mqtt_pub_res;
 }
 
+int asw_get_mqtt_state()
+{
+    return asw_mqtt_app_state_code;
+}
 //---------------------------------//
 int parse_mqtt_msg(char *payload)
 {
@@ -364,6 +368,8 @@ int parse_mqtt_msg(char *payload)
             if (g_asw_debug_enable > 1)
                 event_group_0 |= METER_CONFIG_MASK;
 
+            task_inv_meter_msg |= MSG_PWR_ACTIVE_INDEX; /// debug tgl mark
+
             sleep(1);
         }
         else if (!(strcmp(function, "upgrade")))
@@ -442,6 +448,15 @@ int parse_mqtt_msg(char *payload)
 
 void mqtt_client_destroy_free(void)
 {
+    static int s_mFailedCount = 0;
+
+    if (s_mFailedCount++ > 6)
+    {
+        ESP_LOGE("-MQTT Connect is Erro-", "destroy num >= 6 ,system will restart..");
+        sleep(5);
+
+        esp_restart();
+    }
     if (asw_mqtt_client != NULL && asw_mqtt_app_state_code != 5)
     {
         ESP_LOGE(TAG, "mqtt_client_destroy_free  state is %d\n", asw_mqtt_app_state_code);
@@ -451,6 +466,8 @@ void mqtt_client_destroy_free(void)
         netework_state = 1;
 
         asw_mqtt_app_state_code = 5; //-1-无状态，1-初始完毕，2-connect,3-disconnet,4-stop,5-free
+
+        asw_mqtt_client = NULL;
     }
 }
 
@@ -657,6 +674,8 @@ int parse_mqtt_msg_rrpc(char *rpc_topic, int rpc_len, void *payload, int data_le
         if (g_asw_debug_enable > 1)
             event_group_0 |= METER_CONFIG_MASK;
 
+        task_inv_meter_msg |= MSG_PWR_ACTIVE_INDEX; /// debug tgl mark
+
         event_group_0 |= PWR_REG_SOON_MASK;
         g_meter_sync = 0;
         // send_msg(6, "clearmeter", 9, NULL);
@@ -769,22 +788,22 @@ int parse_mqtt_msg_rrpc(char *rpc_topic, int rpc_len, void *payload, int data_le
 
         // return 0;
     }
-    else if (cJSON_HasObjectItem(json, "get_hostcom") == 1) //[tgl mark] hostcomm
-    {
-        char buf[128] = {0};
-        char puf[128] = {0};
-        get_hostcomm(buf, puf);
+    // else if (cJSON_HasObjectItem(json, "get_hostcom") == 1) //[tgl mark] hostcomm
+    // {
+    //     char buf[128] = {0};
+    //     char puf[128] = {0};
+    //     get_hostcomm(buf, puf);
 
-        char bufx[300] = {0};
-        sprintf(bufx, "hcomm:%spcomm:%srsh:%d", buf, puf, get_rssi());
+    //     char bufx[300] = {0};
+    //     sprintf(bufx, "hcomm:%spcomm:%srsh:%d", buf, puf, get_rssi());
 
-        if (strlen(buf))
-            asw_mqtt_publish(resp_topic, (char *)bufx, strlen(bufx), 0);
-        else
-            asw_mqtt_publish(resp_topic, "no hcomm", strlen("no hcomm"), 0);
+    //     if (strlen(buf))
+    //         asw_mqtt_publish(resp_topic, (char *)bufx, strlen(bufx), 0);
+    //     else
+    //         asw_mqtt_publish(resp_topic, "no hcomm", strlen("no hcomm"), 0);
 
-        // return 0;
-    }
+    //     // return 0;
+    // }
     //------------ Eng.Stg.Mch-lanstick
     ///////////////////////////////////////////
     else if (cJSON_HasObjectItem(json, "getdevdata") == 1)
@@ -852,7 +871,8 @@ int asw_mqtt_publish(const char *topic, const char *data, int data_len, int qos)
 {
     int msg_id = 0;
     msg_id = esp_mqtt_client_publish(asw_mqtt_client, topic, data, data_len, qos, 1);
-    ASW_LOGI("published, msg_id=%d ************", msg_id);
+    if (g_asw_debug_enable == 1)
+        ESP_LOGW("--MQTT PUBLISH--", "published,topic:%s,data:%s msg_id=%d ************", topic, data, msg_id);
     return msg_id;
 }
 //-------------------------------------//
@@ -972,6 +992,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 //----------------------------------------//
 
+int asw_mqtt_reconncet()
+{
+    int res = -1;
+    if (asw_mqtt_app_state_code == 3)
+    {
+        res = esp_mqtt_client_reconnect(asw_mqtt_client);
+        ESP_LOGI(TAG, "mqtt disconnect, client reconnect...%d", res);
+    }
+    return res;
+}
+
 int mqtt_app_start(void)
 {
     const esp_mqtt_client_config_t mqtt_cfg = {
@@ -980,6 +1011,7 @@ int mqtt_app_start(void)
         .client_id = client_id,
         .username = username,
         .password = password,
+        .keepalive = 300
 
     };
     if (strlen(my_uri) == 0)

@@ -3,7 +3,7 @@
 
 #define MAX_HIST_DATA_SIZE 1024 * 2000 /** 2000 KB*/
 
-static const char * TAG="save_in_data.c";
+static const char *TAG = "save_in_data.c";
 int net_com_reboot_flg = 0;
 /********************************/
 
@@ -55,6 +55,7 @@ void check_external_reboot(void)
     }
 }
 
+#if 0
 //-------------------------------//
 int recive_invdata(int *flag, Inv_data *inv_data, int *lost_flag)
 {
@@ -82,7 +83,7 @@ int recive_invdata(int *flag, Inv_data *inv_data, int *lost_flag)
     if (mq0 != NULL)
     {
 
-        //  ESP_LOGW("77777777","---------->>>>>>>>>>>>..recive_invdata,mq0 is not NULL");
+      
         // if (xQueueReceive(mq0, &invdata, (TickType_t)10) == pdPASS)
         if (xQueueReceive(mq0, &invdata, (TickType_t)10) == pdPASS)
         {
@@ -194,7 +195,7 @@ int recive_invdata(int *flag, Inv_data *inv_data, int *lost_flag)
     }
     return 0;
 }
-
+#endif
 ////////////////////////////////////////////
 //---- Eng.Stg.Mch-lanstick + --------//
 /** *****************************************************************************************************
@@ -347,12 +348,38 @@ int write_hist_msg(char *msg, int olen)
 
     nwrite = fwrite(buff, sizeof(char), len, fp);
 
+    ESP_LOGI("-write history data -", "write the len:%d to fp.", len);
+
     fclose(fp);
     if (nwrite == len)
         return 0;
     return -1;
 }
+//------------------------------------------//
+/** 把实时数据改为历史数据 */
+void set_payload_to_hist(char *buf)
+{
+    cJSON *res = cJSON_Parse(buf);
+    char *msg = NULL;
+    int data_type = -1;
 
+    if (strlen(buf) <= 0)
+        return;
+    getJsonNum(&data_type, "data_type", res);
+    if (data_type == INVDATA_TYPE_RT)
+    {
+        cJSON_DeleteItemFromObject(res, "data_type");
+        cJSON_AddNumberToObject(res, "data_type", INVDATA_TYPE_HIST);
+    }
+
+    msg = cJSON_PrintUnformatted(res);
+    memset(buf, 0, JSON_MSG_SIZE);
+    strcpy(buf, msg);
+
+    free(msg);
+    cJSON_Delete(res);
+}
+//------------------------------------------//
 int read_hist_msg(char *msg, int *msg_len)
 {
     int nread = 0;
@@ -563,6 +590,16 @@ int get_invdata_payload(Inv_data invdata, char *payload)
     // printf("payload   %s\n", payload);
     return datlen;
 }
+
+int get_payload_type(char *buf)
+{
+    cJSON *res = cJSON_Parse(buf);
+    int data_type = -1;
+    getJsonNum(&data_type, "data_type", res);
+    cJSON_Delete(res);
+    return data_type;
+}
+
 /**
  * 即时数据处理:
  * 此输入参数兼有表示上次发布的结果之义:
@@ -580,12 +617,17 @@ int read_instant_payload(char *msg)
     int last_len = strlen(msg);
     if (last_len > 0)
     {
-        res = write_hist_msg(msg, last_len);
-        memset(msg, 0, JSON_MSG_SIZE);
-        if (res < -1)
+        int data_type = get_payload_type(msg);
+        if (data_type == INVDATA_TYPE_RT)
         {
-            force_flash_reformart("invdata");
+            res = write_hist_msg(msg, last_len);
+            memset(msg, 0, JSON_MSG_SIZE);
+            if (res < -1)
+            {
+                force_flash_reformart("invdata");
+            }
         }
+        memset(msg, 0, JSON_MSG_SIZE);
     }
 
     /** 接收新的数据*/
@@ -606,7 +648,7 @@ int read_instant_payload(char *msg)
             }
 
             int len = strlen(buf);
-            if ((g_state_mqtt_connect == 0) && (!netework_state || (g_monitor_state && INV_SYNC_PMU_STATE))) // net ok
+            if ((g_state_mqtt_connect == 0) && (!netework_state || (g_monitor_state & INV_SYNC_PMU_STATE))) // net ok
             {
                 ASW_LOGI("net ok, send it\n");
                 /** net ok, generate json, return it*/
@@ -620,10 +662,17 @@ int read_instant_payload(char *msg)
                 /** no net ,generate json, store, return -1*/
                 if (0 == check_time_correct())
                 {
-                    res = write_hist_msg((char *)buf, strlen((char *)buf));
-                    if (res < -1)
+                    int data_type = get_payload_type(buf);
+                    if (data_type == INVDATA_TYPE_RT)
                     {
-                        force_flash_reformart("invdata");
+
+                        res = write_hist_msg((char *)buf, strlen((char *)buf));
+
+                        ESP_LOGI("-write lost data-", " data size:%d", strlen((char *)buf));
+                        if (res < -1)
+                        {
+                            force_flash_reformart("invdata");
+                        }
                     }
                 }
             }

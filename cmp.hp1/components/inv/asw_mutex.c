@@ -77,6 +77,14 @@ void private_memcpy(void *des, void *src, int type_semaIndex, int is_write_nvs)
             memcpy(des, src, sizeof(Bat_arr_t));
             break;
 
+        case GLOBAL_TEST_CTRL:
+            memcpy(des, src, sizeof(test_ctrl_t));
+            if (is_write_nvs == 1)
+            {
+                general_add(NVS_TEST_CTRL, src);
+            }
+            break;
+
         default:
             break;
         }
@@ -120,6 +128,10 @@ void read_global_var(int type, void *p)
         private_memcpy(p, &g_bat_arr, type, 0);
         break;
 
+    case GLOBAL_TEST_CTRL:
+        private_memcpy(p, &g_test_ctrl, type, 0);
+        break;
+
     default:
         break;
     }
@@ -152,6 +164,10 @@ void write_global_var(int type, void *p)
         private_memcpy(&g_bat_arr, p, type, 0);
         break;
 
+    case GLOBAL_TEST_CTRL:
+        private_memcpy(&g_test_ctrl, p, type, 0);
+        break;
+
     default:
         break;
     }
@@ -172,6 +188,10 @@ void write_global_var_to_nvs(int type, void *p)
         private_memcpy(&g_meter_monitor_para, p, type, 1);
         break;
 
+    case GLOBAL_TEST_CTRL:
+        private_memcpy(&g_test_ctrl, p, type, 1);
+        break;
+
     default:
         break;
     }
@@ -180,6 +200,8 @@ void write_global_var_to_nvs(int type, void *p)
 void load_global_var(void)
 {
     int res = 0;
+    res = general_query(NVS_TEST_CTRL, &g_test_ctrl);
+
     res = general_query(NVS_METER_CONTROL, &g_meter_monitor_para);
 
     ESP_LOGI("-load_global_var-", "---------  read  NVS_METER_CONTROL res:%d-------\n", res);
@@ -294,28 +316,28 @@ void load_global_var(void)
     if (g_parallel_enable == 0)
     {
         uint8_t i = 0, j = 0;
+        g_battery_selfmode_is_same = 1;
+
         for (i = 0; i < INV_NUM; i++)
         {
             if (g_monitor_para[i].modbus_id < 3)
             {
                 break;
-                j = i;
             }
 
             if (g_monitor_para[i].batmonitor.uu1 != 4 || g_monitor_para[i].batmonitor.dc_per != 1)
             {
+                g_battery_selfmode_is_same = 0;
                 break;
             }
         }
 
-        if (i == j)
-            g_battery_selfmode_is_same = 1;
-        else
+        if (i == 0)
             g_battery_selfmode_is_same = 0;
     }
     else if (g_parallel_enable == 1)
     {
-
+        g_battery_selfmode_is_same = 0;
         for (uint8_t i = 0; i < INV_NUM; i++)
         {
             if (g_monitor_para[i].modbus_id < 3)

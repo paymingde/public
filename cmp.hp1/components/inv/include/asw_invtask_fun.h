@@ -17,5 +17,7 @@
 
 int8_t setting_event_handler(void);
 
-void handleMsg_setAdv_fun(void);
+int  handleMsg_setAdv_fun(void);
+int handleMsg_pwrActive_fun(MonitorPara *p_monitor_para, meter_data_t *p_inv_meter);
+
 #endif

@@ -101,8 +101,8 @@ int8_t md_query_meter_data(int type, uint8_t modbus_id, uint8_t is_fast)
         else
         {
             /////////////////////////////// MAKR --- 20220916 ///////////////////////////////////////
-            md_decode_meter_pack(is_fast, type, mb_res.frame, mb_res.len, meter_frame_order);
-            return ASW_OK;
+          return  md_decode_meter_pack(is_fast, type, mb_res.frame, mb_res.len, meter_frame_order);
+            // return ASW_OK;
         }
     }
 
@@ -133,8 +133,8 @@ int8_t md_query_meter_data(int type, uint8_t modbus_id, uint8_t is_fast)
             return -1;
         else
         {
-            md_decode_meter_pack(is_fast, type, mb_res.frame, mb_res.len, meter_frame_order);
-            return 0;
+            return md_decode_meter_pack(is_fast, type, mb_res.frame, mb_res.len, meter_frame_order);
+            // return 0;
         }
     }
 
@@ -159,71 +159,95 @@ static rst_code md_write_SIG_command(const Inverter *inv_ptr, const void *data_p
     memset(buffer, 0x00, 256);
     if (NULL == inv_ptr)
     {
-        //并机模式下只发送到主机
-        if (g_parallel_enable)
-        {
-            buffer[0] = g_host_modbus_id & 0xff; // broadcast address
-        }
-        // 普通模式广播发送
-        else
+        // //并机模式下只发送到主机
+        // if (g_parallel_enable)
+        // {
+        //     buffer[0] = g_host_modbus_id & 0xff; // broadcast address
+        // }
+        // // 普通模式广播发送
+        // else
         {
             buffer[0] = 0X00; // broadcast address
         }
-        buffer[1] = 0x06;
-        buffer[2] = (uint8_t)((spack->reg_addr >> 8) & 0xff);
-        buffer[3] = (uint8_t)(spack->reg_addr & 0xff);
-        buffer[4] = (uint8_t)(spack->data[0]);
-        buffer[5] = (uint8_t)(spack->data[1]);
-        crc_val = crc16_calc(buffer, 6);
-        buffer[6] = (uint8_t)(crc_val & 0xff);
-        buffer[7] = (uint8_t)((crc_val >> 8) & 0xff);
+        // buffer[1] = 0x06;
+        // buffer[2] = (uint8_t)((spack->reg_addr >> 8) & 0xff);
+        // buffer[3] = (uint8_t)(spack->reg_addr & 0xff);
+        // buffer[4] = (uint8_t)(spack->data[0]);
+        // buffer[5] = (uint8_t)(spack->data[1]);
+        // crc_val = crc16_calc(buffer, 6);
+        // buffer[6] = (uint8_t)(crc_val & 0xff);
+        // buffer[7] = (uint8_t)((crc_val >> 8) & 0xff);
 
-        ///////////////////////////////////////////
+        // ///////////////////////////////////////////
 
-        if (g_asw_debug_enable == 1)
-        {
-            ESP_LOGI("-S-", "send to inv meter...");
-            for (uint8_t i = 0; i < 8; i++)
-            {
-                printf("<%02X> ", buffer[i]);
-            }
-            printf("\n");
-        }
-        ///////////////////////////////////////////////
+        // if (g_asw_debug_enable == 1)
+        // {
+        //     ESP_LOGI("-S-", "send to inv meter...");
+        //     for (uint8_t i = 0; i < 8; i++)
+        //     {
+        //         printf("<%02X> ", buffer[i]);
+        //     }
+        //     printf("\n");
+        // }
+        // ///////////////////////////////////////////////
 
-        uart_write_bytes(UART_NUM_1, (const char *)buffer, 8);
+        // uart_write_bytes(UART_NUM_1, (const char *)buffer, 8);
     }
     else
     {
         buffer[0] = inv_ptr->regInfo.modbus_id; //,addr;
-        buffer[1] = 0x06;
-        buffer[2] = (uint8_t)((spack->reg_addr >> 8) & 0xff);
-        buffer[3] = (uint8_t)(spack->reg_addr & 0xff);
-        buffer[4] = (char)(spack->data[0]);
-        buffer[5] = (char)(spack->data[1]);
-        crc_val = crc16_calc(buffer, 6);
-        buffer[6] = (uint8_t)(crc_val & 0xff);
-        buffer[7] = (uint8_t)((crc_val >> 8) & 0xff);
+        // buffer[1] = 0x06;
+        // buffer[2] = (uint8_t)((spack->reg_addr >> 8) & 0xff);
+        // buffer[3] = (uint8_t)(spack->reg_addr & 0xff);
+        // buffer[4] = (char)(spack->data[0]);
+        // buffer[5] = (char)(spack->data[1]);
+        // crc_val = crc16_calc(buffer, 6);
+        // buffer[6] = (uint8_t)(crc_val & 0xff);
+        // buffer[7] = (uint8_t)((crc_val >> 8) & 0xff);
 
-        ///////////////////////////////////////////
+        // ///////////////////////////////////////////
 
-        if (g_asw_debug_enable == 1)
-        {
-            ESP_LOGI("-S-", "send to inv meter...");
-            for (uint8_t i = 0; i < 8; i++)
-            {
-                printf("<%02X> ", buffer[i]);
-            }
-            printf("\n");
-        }
-        ///////////////////////////////////////////////
-        uart_write_bytes(UART_NUM_1, (const char *)buffer, 8);
+        // if (g_asw_debug_enable == 1)
+        // {
+        //     ESP_LOGI("-S-", "send to inv meter...");
+        //     for (uint8_t i = 0; i < 8; i++)
+        //     {
+        //         printf("<%02X> ", buffer[i]);
+        //     }
+        //     printf("\n");
+        // }
+        // ///////////////////////////////////////////////
+        // uart_write_bytes(UART_NUM_1, (const char *)buffer, 8);
     }
 
-    //////////////////////
-    if (NULL == inv_ptr && !g_parallel_enable)
+    buffer[1] = 0x06;
+    buffer[2] = (uint8_t)((spack->reg_addr >> 8) & 0xff);
+    buffer[3] = (uint8_t)(spack->reg_addr & 0xff);
+    buffer[4] = (uint8_t)(spack->data[0]);
+    buffer[5] = (uint8_t)(spack->data[1]);
+    crc_val = crc16_calc(buffer, 6);
+    buffer[6] = (uint8_t)(crc_val & 0xff);
+    buffer[7] = (uint8_t)((crc_val >> 8) & 0xff);
+
+    ///////////////////////////////////////////
+
+    if (g_asw_debug_enable == 1)
     {
-        usleep(200 * 1000); // 200ms
+        ESP_LOGI("-S-", "send to inv meter...");
+        for (uint8_t i = 0; i < 8; i++)
+        {
+            printf("<%02X> ", buffer[i]);
+        }
+        printf("\n");
+    }
+    ///////////////////////////////////////////////
+
+    uart_write_bytes(UART_NUM_1, (const char *)buffer, 8);
+
+    //////////////////////
+    if (NULL == inv_ptr) //&& !g_parallel_enable)
+    {
+        usleep(260 * 1000); // 260ms
         ASW_LOGI("\n==== broad cast to inv control meter power finished. \n");
         return RST_YES;
     }
@@ -309,14 +333,14 @@ int md_write_active_pwr(const Inverter *inv_ptr)
 // 防逆流发送PAV，并机模式下发送主机，普通模式广播发送
 int writeRegulatePower_fast(int16_t adjust_num)
 {
-    if (g_num_real_inv == 1)
-    {
+    // if (g_num_real_inv == 1)
+    // {
 
-        Inverter *inv_ptr = &inv_arr[0];
-        return md_write_active_pwr_fast(inv_ptr, adjust_num);
-    }
+    //     Inverter *inv_ptr = &inv_arr[0];
+    //     return md_write_active_pwr_fast(inv_ptr, adjust_num);
+    // }
 
-    else
+    // else
     {
         // md_write_active_pwr(NULL);
         return md_write_active_pwr_fast(NULL, adjust_num); // add for broadcast
@@ -563,11 +587,16 @@ void send_meter_status(int ret)
     static int8_t last_meter_status = -1; /** -1 is init */
     uint8_t curr_meter_status = 0;
     static int offline_sec = 0;
+    static uint8_t meter_read_fail = 0;
+
     int now_sec = get_second_sys_time();
 
+    ASW_LOGI("metre lastest offline time:%d,now time:%d\n", offline_sec, now_sec);
     if (ret == 0)
     {
         curr_meter_status = 1; // 1: online 0:offline
+
+        meter_read_fail = 0;
         /** online 只要读到电表，就会触发*/
         if (last_meter_status != 1)
             task_inv_meter_msg |= MSG_PWR_ACTIVE_INDEX;
@@ -576,29 +605,20 @@ void send_meter_status(int ret)
     {
         if (last_meter_status == 1 || last_meter_status == -1)
         {
-/////////////////////////////////////////////
-#if 0
-            for (uint8_t j = 0; j < g_num_real_inv; j++)
+            /////////////////////////////////////////////
+
+            meter_read_fail++;
+
+            if (meter_read_fail >= 2)
             {
-                int mach_type = inv_arr[j].regInfo.mach_type;
-                int status = inv_arr[j].status;
-                if (mach_type > 10 && status == 1) // estore && online
+
+                if (g_safety_is_96_97)
                 {
-                    uint8_t msafe = inv_arr[j].regInfo.safety_type;
-
-                    if (msafe == 96 || msafe == 97 || msafe == 80)
-#endif
-            if (g_safety_is_96_97)
-            {
-
-                handleMsg_setAdv_fun();
-                // uint16_t data[2] = {0};
-                // data[0] = 0x0005;
-                // data[1] = 0x0005;
-                // modbus_write_inv(inv_arr[j].regInfo.modbus_id, INV_REG_ADDR_METER, 2, data); /** 电表状态: 41108*/
+                    handleMsg_setAdv_fun();
+                }
+                else if ((task_inv_meter_msg & MSG_INV_SET_ADV_INDEX) == 0)
+                    task_inv_meter_msg |= MSG_INV_SET_ADV_INDEX;
             }
-            else if ((task_inv_meter_msg & MSG_INV_SET_ADV_INDEX) == 0)
-                task_inv_meter_msg |= MSG_INV_SET_ADV_INDEX;
 
             /////////////////////////////////////////////////
             offline_sec = now_sec;
@@ -639,16 +659,21 @@ SERIAL_STATE query_meter_proc(int is_for_cloud)
     if (monitor_para.adv.meter_enb != 1)
         return TASK_IDLE;
 
-    //防逆流的情况下，可以把常规读取电表数据屏蔽i掉 tgl mark 待验证
-    if (is_for_cloud == 1 && 10 == monitor_para.adv.meter_regulate)
-        return TASK_IDLE;
+    //防逆流的情况下，可以把常规读取电表数据屏蔽i掉 tgl mark 待验证 会造成防逆流的时候无法读取到买、卖电量
+    // if (is_for_cloud == 1 && 10 == monitor_para.adv.meter_regulate)
+    //     return TASK_IDLE;
 
     int ret = -1;
-    static int read_time = 0;
+    // static int read_time = 0;
     static int pf_time = 0;
     static int64_t m_last_ms = 0; // for test
 
-    ASW_LOGI("query_meter_proc---> mode:%d ,meter_enb:%d", monitor_para.adv.meter_mod, monitor_para.adv.meter_enb);
+    static int nCountLog = 0;
+    if (nCountLog++ > 10)
+    {
+        ASW_LOGI("query_meter_proc---> mode:%d ,meter_enb:%d", monitor_para.adv.meter_mod, monitor_para.adv.meter_enb);
+        nCountLog = 0;
+    }
 #if !TRIPHASE_ARM_SUPPORT
 
     if (monitor_para.adv.meter_mod < 0 || monitor_para.adv.meter_mod > 4)
@@ -673,10 +698,13 @@ SERIAL_STATE query_meter_proc(int is_for_cloud)
 
     if (is_for_cloud == 1)
     {
+
+        // printf("\nMeter Debug Info: is for cloud read meter type:%d.\n", monitor_para.adv.meter_mod);
         ret = md_query_meter_data(monitor_para.adv.meter_mod, 1, 0);
         if (ret != 0)
         {
             meter_offline_handler();
+            // flush_serial_port(UART_NUM_1); // debug add
         }
         send_meter_status(ret);
 
@@ -692,6 +720,7 @@ SERIAL_STATE query_meter_proc(int is_for_cloud)
         if (ret != 0)
         {
             meter_offline_handler();
+            // flush_serial_port(UART_NUM_1); // debug add
         }
 
         send_meter_status(ret);
@@ -699,8 +728,9 @@ SERIAL_STATE query_meter_proc(int is_for_cloud)
         if ((ASW_OK == ret) && (10 == monitor_para.adv.meter_regulate))
         {
             ////////////////////////////////////////
-            ASW_LOGI("---------------query_meter_proc enable power control[%lldms]-------------",
-                     get_msecond_sys_time() - m_last_ms);
+            if (g_asw_debug_enable == 1)
+                ESP_LOGW("Meter Power control", "----query_meter_proc enable power control[%lldms]-------------",
+                         get_msecond_sys_time() - m_last_ms);
             m_last_ms = get_msecond_sys_time();
             ////////////////////////////////////
             read_global_var(METER_CONTROL_CONFIG, &monitor_para); /** keep target power newest*/
@@ -709,41 +739,7 @@ SERIAL_STATE query_meter_proc(int is_for_cloud)
 
 #endif
     }
-#if 0  //非防逆流的情况下，不用400ms读一次电表
-    else
-    {
 
-        ESP_LOGE("--TEST ERRO PRINT--", "When Print ,the COde have Erro Happened!!!!\n");
-        /** 防逆流未使能，慢速读取*/
-        // if (is_safety_96_97() == 1)
-        if (g_safety_is_96_97)
-        {
-            ret = md_query_meter_data(monitor_para.adv.meter_mod, 1, 0);
-            if (ret != 0)
-            {
-                meter_offline_handler();
-            }
-            send_meter_status(ret);
-
-            read_time = 0;
-        }
-        else
-        {
-             if (read_time >= 3) // 1s  test
-            {
-                ret = md_query_meter_data(monitor_para.adv.meter_mod, 1, 0);
-                if (ret != 0)
-                {
-                    meter_offline_handler();
-                }
-                send_meter_status(ret);
-
-                read_time = 0;
-            }
-        }
-    }
-
-#endif
 #if !TRIPHASE_ARM_SUPPORT
 
     // if (read_time++ > 10000)
@@ -806,15 +802,12 @@ SERIAL_STATE query_meter_proc(int is_for_cloud)
         pf_time = 0;
     }
 
-    /**
-     * @brief [tgl mark] 此处应该刷新哪个串口？？？ UART_NUM_1
-     *       旧电表为UART_NUM_1(type<=6) iread&acrel的为UART_NUM_2
-     */
-    if (ret < 0)
-    {
+   
+    // if (ret < 0)
+    // {
 
-        flush_serial_port(UART_NUM_1);
-    }
+    //     flush_serial_port(UART_NUM_1);
+    // }
 
 #endif
 

@@ -39,7 +39,6 @@ int get_net_state(void);
 int mqtt_connect(void);
 
 /* Eng.Stg.Mch-lanstick */
-// int mqtt_publish(int flag, Inv_data invdata, int * lost_flag);
 int mqtt_publish(char *json_msg);
 
 int trans_resrrpc_pub(cloud_inv_msg *resp, unsigned char *ws, int len);
@@ -52,5 +51,5 @@ int GetMinute1(int ihour, int iminute, int imsec);
 
 void Check_upload_unit32(const char *field, uint32_t value, char *body, int *datalen); //[tgl mark] uint8_t->uint32_t
 void Check_upload_sint16(const char *field, uint16_t value, char *body, int *datalen);
-
+void clear_inv_pmu_sync_info(void);
 #endif

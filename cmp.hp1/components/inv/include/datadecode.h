@@ -15,6 +15,8 @@
 
 void md_decode_inv_data_content(uint8_t *packet, Inv_data *inv_data_ptr);
 void md_decode_inv_Info(const uint8_t *data, InvRegister *inv_ptr);
+
+void mc_decode_inv_hist_err(uint8_t* packet, uint16_t* histerr_ptr);
 #if 0
 
 #include "data_process.h"

@@ -38,7 +38,9 @@ typedef enum
     NVS_CONFIG,
     NVS_SCHED_BAT,
     NVS_METER_CONTROL, //Lanstick-MultilInv +
-    NVS_NET_STATIC_INFO //staatic ip info
+    NVS_NET_STATIC_INFO, //staatic ip info
+    NVS_TM_ZONE_SETFLG,
+    NVS_TEST_CTRL
 }Enum_NVS_NameSpace;
 
 // void asw_nvs_init(void);

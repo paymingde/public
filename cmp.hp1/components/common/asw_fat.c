@@ -445,8 +445,8 @@ int read_lost_data(Inv_data *inv_data, int *line)
     int tmp_line = 0;
     tmp_line = *line;
 
-    fseek(fp, (*line) * 290, SEEK_SET);
-
+    // fseek(fp, (*line) * 290, SEEK_SET);
+    fseek(fp, (*line) * sizeof(Inv_data) + 2, SEEK_SET);
     // while (!feof(fp) )
     {
         tmp_line++;
@@ -517,7 +517,7 @@ int read_lost_index(void)
     i = fread(buff, sizeof(char), 32, fp);
     ESP_LOGE("read index", "all read*%d#%s#--- ", i, buff);
     fclose(fp);
-    
+
     tmp_index = atoi(buff);
     ESP_LOGE("read index", "read index is %d \n", tmp_index);
     if (tmp_index < 8000)

@@ -177,9 +177,7 @@ uint8_t load_reg_info(void)
             g_host_modbus_id = reg_info_arr[i].modbus_id;
         }
 #endif
-
         ////////////////////////////////////// for set battery inf0 //////////////////////////
-
         /*  FOR TEST MultilInv  */
         uint8_t flag_monitor_get = 0;
 
@@ -621,6 +619,25 @@ int8_t legal_check(char *text)
     else
         return ASW_FAIL;
 }
+//-------------------------------------//
+int is_in_test_mode(void)
+{
+    test_ctrl_t ctrl = {0};
+    char curr_datetime[20] = {0};
+
+    if (is_time_valid() == 0)
+        return 0;
+    read_global_var(GLOBAL_TEST_CTRL, &ctrl);
+    if (ctrl.on == 0)
+        return 0;
+
+    get_time(curr_datetime, sizeof(curr_datetime));
+    if (strcmp(curr_datetime, ctrl.deadline) < 0)
+    {
+        return 1;
+    }
+    return 0;
+}
 
 //--------------------------------------------------//
 SERIAL_STATE inv_task_schedule(char *func, cloud_inv_msg *data)
@@ -948,6 +965,7 @@ SERIAL_STATE query_data_proc()
         if (curr_inv_ptr->regInfo.syn_time == 0)
         {
             ASW_LOGW("DEBUG: Sync time from cloud");
+            flush_serial_port(UART_NUM_1); //分包修复？？
             if (md_write_data(curr_inv_ptr, CMD_MD_WRITE_INV_TIME) == ASW_OK)
             {
                 inv_arr[inv_index - 1].regInfo.syn_time = 1;
@@ -967,6 +985,7 @@ SERIAL_STATE query_data_proc()
         ASW_LOGI("read time B  %d %d \n", g_monitor_state, curr_inv_ptr->status);
         if (curr_inv_ptr->status)
         {
+            flush_serial_port(UART_NUM_1); //分包修复？？
 
             if (ASW_OK == (md_read_data(curr_inv_ptr, CMD_MD_READ_INV_TIME, NULL, NULL))) //
             {
@@ -1013,6 +1032,7 @@ SERIAL_STATE query_data_proc()
         // if (strlen(inv_arr[inv_index - 1].regInfo.mode_name) < 1)
         if (strlen(inv_arr[inv_index - 1].regInfo.msw_ver) <= 1) // mar by tgl
         {
+            flush_serial_port(UART_NUM_1); // debug add
 
             if (ASW_OK == (md_read_data(curr_inv_ptr, CMD_MD_READ_INV_INFO, &inv_index, (uint16_t *)&save_time)))
             {
@@ -1231,6 +1251,7 @@ SERIAL_STATE upinv_transdata_proc(char func, cloud_inv_msg tans_data)
 
     ASW_LOGI("rec uuu ws>  %d %d  %d  %d %s\n", func, tans_data.len, strlen(tans_data.data), tans_data.len, ws);
 
+    usleep(300 * 1000);
     uart_wait_tx_done(UART_NUM_1, 0);
     // uart_tx_flush(0); [tgl mark]  没有这个函数 替换为uart_flush(0)
     uart_flush(UART_NUM_1);
@@ -1291,7 +1312,7 @@ SERIAL_STATE upinv_transdata_proc(char func, cloud_inv_msg tans_data)
     trans_data.len = data_len;
 
     if (2 == func)
-        trans_resrrpc_pub(&trans_data, ws, data_len); // 
+        trans_resrrpc_pub(&trans_data, ws, (res == ASW_OK ? data_len : 0)); //
     ASW_LOGI("--- DEBUG MARK waiting clound component app_mqtt.c---");
 
     if (20 == func)
@@ -1301,11 +1322,14 @@ SERIAL_STATE upinv_transdata_proc(char func, cloud_inv_msg tans_data)
         fdbg_msg.len = data_len;
         memcpy(fdbg_msg.data, buff_data, data_len);
 
-        if (to_cgi_fdbg_mq != NULL)
+        if (res == ASW_OK)
         {
-            ASW_LOGI("cgidata %d \n ", data_len);
-            for (i = 0; i < data_len; i++)
-                printf("%02X ", fdbg_msg.data[i]);
+            // if (g_asw_debug_enable > 1)
+            // {
+            //     ASW_LOGI("cgidata %d \n ", data_len);
+            //     for (i = 0; i < data_len; i++)
+            //         printf("%02X ", fdbg_msg.data[i]);
+            // }
 
             fdbg_msg.type = MSG_FDBG;
             if (to_cgi_fdbg_mq != NULL)
@@ -2040,8 +2064,10 @@ static int asw_readreg_battery_discharge_info()
         memset(buf, 0, 4);
         asw_md_read_inv_reg(inv_arr[i].regInfo.modbus_id, INV_REG_ADDR_BATTERY_CHAGE_CONFIG, 2, buf);
 
-        discharge_value = ((buf[0] << 16) & 0xff00) | (buf[1] & 0xff);
-        charge_value = ((buf[2] << 16) & 0xff00) | (buf[3] & 0xff);
+        // discharge_value = ((buf[0] << 16) & 0xff00) | (buf[1] & 0xff);
+        // charge_value = ((buf[2] << 16) & 0xff00) | (buf[3] & 0xff);
+        charge_value = ((buf[0] << 8) & 0xff00) | (buf[1] & 0xff);
+        discharge_value = ((buf[2] << 8) & 0xff00) | (buf[3] & 0xff);
         memcpy(monitor_para_arr[i].sn, inv_arr[i].regInfo.sn, sizeof(inv_arr[i].regInfo.sn));
         monitor_para_arr[i].modbus_id = inv_arr[i].regInfo.modbus_id;
 

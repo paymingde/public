@@ -21,6 +21,7 @@ void send_inv_cld_status_check(void)
 
     if (last_status != curr_status)
     {
+        ESP_LOGI("update connect state to inv", " update mqtt connect state %d:%d to inv.", last_status, curr_status);
         g_task_inv_broadcast_msg |= MSG_BRDCST_DSP_ZV_CLD_INDEX;
         last_status = curr_status;
     }
@@ -48,26 +49,12 @@ void cloud_task(void *pvParameters)
     {
         if (g_stick_run_mode == Work_Mode_AP_PROV || (g_stick_run_mode == Work_Mode_LAN && get_eth_connect_status() != 0) || (g_stick_run_mode == Work_Mode_STA && get_wifi_sta_connect_status() != 0))
         {
-            m_mqtt_connect_enable = 0;
-            // failed_num = 0;
-
+            m_mqtt_connect_enable = 0;    
             mqtt_state = dcIdle;
         }
         else
         {
-            m_mqtt_connect_enable = 1;
-
-            ////// 当网络连接正常，服务器链接异常时，重新进行连接mqtt服务器 //////////  Mark  20220919+ //////////////////////
-            // if (g_state_mqtt_connect == -1)
-            // {
-            //     if (failed_num++ > 30)
-            //     {
-            //         failed_num = 0;
-            //         mqtt_state = dcalilyun_authenticate;
-            //         printf("\n========================   clound task ============   mqtt connected failed reconnect to mqtt \n");
-            //     }
-            // }
-            //////////////////////////////////////////////////////////////////////////////////////////////////////////
+            m_mqtt_connect_enable = 1;      
         }
 
         if (!update_inverter && m_mqtt_connect_enable) // v2.0.0 add   TODOs
@@ -82,7 +69,6 @@ void cloud_task(void *pvParameters)
                 mqtt_state = mqtt_connect();
                 break;
             case dcalilyun_publish:
-                // mqtt_state = mqtt_publish(get_new_invdata, inv_data, &lost_data_flag);
                 mqtt_state = mqtt_publish(json_msg);
                 break;
             default:
@@ -97,6 +83,6 @@ void cloud_task(void *pvParameters)
         cld_idle_work();
         send_inv_cld_status_check(); // for estore only
 
-        vTaskDelay(10 / portTICK_PERIOD_MS); // usleep(50 * 1000);  [tgl change]
+        vTaskDelay(20 / portTICK_PERIOD_MS); // usleep(50 * 1000);  [tgl change]
     }
 }

@@ -46,10 +46,10 @@ uint8_t g_ssc_enable;
 uint8_t g_parallel_enable = 99; //并机模式 1-打开 0-关闭
 uint8_t g_host_modbus_id = 3;   //并机模式下主机modbus id
 bool g_safety_is_96_97 = 0;
-bool g_battery_selfmode_is_same=0;  
+bool g_battery_selfmode_is_same = 0;
 
 // char g_p2p_mode = 0 ;
-//===================================//
+//=================================//
 // xSemaphoreHandle server_ready;
 xSemaphoreHandle g_semar_psn_ready;
 xSemaphoreHandle g_semar_wrt_sync_reboot;
@@ -122,7 +122,7 @@ void app_main()
 
     task_led_create(); //[tgl lan]注意引脚 不要与eth引脚冲突
 
-    // xTaskCreate(print_meminfo_task, "print_meminfo_task", 4096, NULL, 5, NULL); //[ mem]debug
+    xTaskCreate(print_meminfo_task, "print_meminfo_task", 4096, NULL, 5, NULL); //[ mem]debug
 }
 
 //-------------------//
@@ -177,17 +177,22 @@ void task_led_create()
 //-------------------------//
 void print_meminfo_task()
 {
+
     static char InfoBuffer[512] = {0};
     while (1)
     {
-        ASW_LOGE("mem free has %dKiB.", esp_get_free_heap_size() / 1024);
+        if (g_asw_debug_enable == 3)
+        {
+            ASW_LOGE("mem free has %dKiB.", esp_get_free_heap_size() / 1024);
 
-        ESP_LOGW("Stick Run Mode", " [%d] 0:IDLE,1:AP-Prov,2:WIFI-STA,3:LAN ,lan-status:%d ,cloud-status:%d",
-                 g_stick_run_mode, get_eth_connect_status(), g_state_mqtt_connect);
+            ESP_LOGW("Stick Run Mode", " [%d] 0:IDLE,1:AP-Prov,2:WIFI-STA,3:LAN ,lan-status:%d ,cloud-status:%d",
+                     g_stick_run_mode, get_eth_connect_status(), g_state_mqtt_connect);
 
-        vTaskList((char *)&InfoBuffer);
-        ASW_LOGW("|任务状态|优先级|剩余栈|任务序号\r\n");
-        printf("\r\n%s\r\n", InfoBuffer);
+            vTaskList((char *)&InfoBuffer);
+            ASW_LOGW("|任务状态|优先级|剩余栈|任务序号\r\n");
+            printf("\r\n%s\r\n", InfoBuffer);
+        }
+
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }

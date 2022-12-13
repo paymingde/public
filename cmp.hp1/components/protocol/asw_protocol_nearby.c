@@ -146,7 +146,7 @@ static char *getdev_handle_type_2_fun()
         cJSON_AddStringToObject(item, "model", cgi_inv_arr[i].regInfo.mode_name);
 
 #if TRIPHASE_ARM_SUPPORT
-        cJSON_AddStringToObject(item, "armssv", cgi_inv_arr[i].regInfo.csw_ver);
+        cJSON_AddStringToObject(item, "lsw", cgi_inv_arr[i].regInfo.csw_ver);
 
 #endif
 
@@ -161,12 +161,12 @@ static char *getdev_handle_type_2_fun()
 #endif
                 host_status = 1;
             else
-                host_status = 0;
+                host_status = 2;
             ////////////////////////////////////
         }
         else
         {
-            host_status = 99;
+            host_status = 0;
         }
 
         cJSON_AddNumberToObject(item, "host", host_status);
@@ -372,7 +372,7 @@ static char *getdevdata_handle_type_2_fun(char *inv_sn)
     // #endif
     cJSON *res = cJSON_CreateObject();
 
-    cJSON_AddNumberToObject(res, "flg", cgi_inv_arr[i].invdata.status);
+    cJSON_AddNumberToObject(res, "flg", cgi_inv_arr[i].status);
     char time_tmp[64] = {0};
     fileter_time(cgi_inv_arr[i].invdata.time, time_tmp);
     cJSON_AddStringToObject(res, "tim", time_tmp);
@@ -433,6 +433,7 @@ static char *getdevdata_handle_type_2_fun(char *inv_sn)
         if (var != 0xFFFF)
             cJSON_AddNumberToObject(myarr, "", var);
     }
+    cJSON_AddNumberToObject(res, "stu", cgi_inv_arr[i].invdata.status);
 
     msg = cJSON_PrintUnformatted(res);
 
@@ -922,8 +923,7 @@ static int asw_handle_paraller_msg(uint8_t is_parallel, cJSON *value)
     getJsonStr(pcHostPsn, "host_sn", sizeof(pcHostPsn), value);
 
 #else
-    uint16_t hostId = 0;
-
+    int hostId = 0;
     getJsonNum(&hostId, "host", value);
 
 #endif
@@ -978,6 +978,7 @@ static int asw_handle_paraller_msg(uint8_t is_parallel, cJSON *value)
 
     printf("----------asw_handle_paraller_msg :%d ", is_parallel);
     g_task_inv_broadcast_msg |= MSG_WRT_SET_HOST_INDEX;
+    g_monitor_state &= ~INV_SYNC_INV_STATE; ///???
 
     return 0;
 }
@@ -1005,14 +1006,36 @@ static int16_t setting_handler_device_1_fun(char *action, cJSON *value)
 {
     if (strcmp(action, "settime") == 0)
     {
+        // char buf[20] = {0};
+        // getJsonStr(buf, "time", sizeof(buf), value);
+        // ASW_LOGI("recv time: %s", buf); // recv time: 20201022140813
+        // if (strlen(buf) > 10)
+        // {
+        //     set_time_cgi(buf);
+        // }
+        // return 0;
+
+        int tmz = 0;
+        getJsonNum(&tmz, "tzmoffset", value);
+        tmz = 0 - tmz;
+        ESP_LOGI(TAG, "time zone off %d \n", tmz);
+        general_add(NVS_TM_ZONE_SETFLG, &tmz);
         char buf[20] = {0};
         getJsonStr(buf, "time", sizeof(buf), value);
-        ASW_LOGI("recv time: %s", buf); // recv time: 20201022140813
-        if (strlen(buf) > 10)
+
+        char sumtm[512] = {0};
+        getJsonStr(sumtm, "daylight", sizeof(sumtm), value);
+        ESP_LOGI(TAG, "sum time %s \n", sumtm);
+
+        write_daylight_data(tmz, sumtm);
+
+        if (strlen(buf) == 19)
         {
-            set_time_cgi(buf);
+            set_time_from_string(buf, tmz);
         }
+
         return 0;
+
     }
     else if (strcmp(action, "setdev") == 0)
     {
@@ -1221,6 +1244,7 @@ static int16_t setting_handler_device_3_fun(char *action, cJSON *value)
         /*根据调试打印设置值，判断是否进行数据打印*/
         if (g_asw_debug_enable > 1)
             event_group_0 |= METER_CONFIG_MASK;
+        task_inv_meter_msg |= MSG_PWR_ACTIVE_INDEX;  /// debug tgl mark
 
         return 0;
     }

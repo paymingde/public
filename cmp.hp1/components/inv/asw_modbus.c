@@ -213,10 +213,16 @@ int8_t recv_bytes_frame_waitting(int fd, uint8_t *res_buf, uint16_t *res_len)
 AAA:
     if (len != max_len)
     {
-        ESP_LOGW(TAG, "maxlen---------------------------------%d---%d---\n", max_len, len);
+        ESP_LOGW(TAG, "modbus recv len erro, maxlen---------------------------------%d---%d---\n", max_len, len);
         return ASW_FAIL;
     }
     crc = crc16_calc(buf, max_len);
+
+    if (crc != 0)
+    {
+        ESP_LOGE(TAG, "Modbus recv crc erro!");
+        return ASW_FAIL;
+    }
 
     ASW_LOGI("recvv ok %x  %x %d \n", crc, ((buf[max_len - 2] << 8) | buf[max_len - 1]), len);
 
@@ -289,19 +295,30 @@ void save_inv_data(Inv_data p_data, unsigned int *time, uint16_t *error_code)
     Inv_data _data = p_data;
     // save data every five minute
     struct timeval tv;
-    // static uint32_t save_data_time = 0; // the time for sampling inverter data
     int period = 0;
+
+    _data.data_type = INVDATA_TYPE_RT;
 
     ASW_LOGI("*******save_inv_data----->>>> %d %d \n", *error_code, p_data.error);
     if ((*error_code != p_data.error) && (p_data.error != 0XFFFF))
     {
+        ESP_LOGE(TAG, "psn:%s, find error----->>>> %d %d \n", _data.psn, *error_code, p_data.error);
         *error_code = p_data.error;
-        ESP_LOGE(TAG, "find error----->>>> %d %d \n", *error_code, p_data.error);
+
         if (p_data.error != 0)
         {
             goto sent_error;
         }
     }
+
+    /* 如果测试打开 */
+
+    if (is_in_test_mode() == 1)
+    {
+        _data.data_type = INVDATA_TYPE_TEST;
+        goto sent_error;
+    }
+
     /*save data every 1 minte*/
     gettimeofday(&tv, NULL);
 
@@ -317,17 +334,21 @@ void save_inv_data(Inv_data p_data, unsigned int *time, uint16_t *error_code)
         return;
     }
 
-    if ((((_data.time[0] - 0x30) * 10 + (_data.time[1] - 0x30)) * 100 +
-         (_data.time[2] - 0x30) * 10 + (_data.time[3] - 0x30)) < 2020)
+    // if ((((_data.time[0] - 0x30) * 10 + (_data.time[1] - 0x30)) * 100 +
+    //      (_data.time[2] - 0x30) * 10 + (_data.time[3] - 0x30)) < 2020)
+    // {
+    //     ESP_LOGW("--- save_inv_data Erro---", " the send data time is not right! ");
+    //     return;
+    // }
+
+sent_error:
+    if (strncmp(_data.time, "2020", 4) < 0 || strncmp(_data.time, "2060", 4) > 0)
     {
         ESP_LOGW("--- save_inv_data Erro---", " the send data time is not right! ");
         return;
     }
 
-sent_error:
-    ASW_LOGI("read** %s %s %d %d %d\n", _data.psn, _data.time,
-             (_data.time[0] - 0x30) * 10 + (_data.time[1] - 0x30), (_data.time[2] - 0x30) * 10 + (_data.time[3] - 0x30),
-             (((_data.time[0] - 0x30) * 10 + (_data.time[1] - 0x30)) * 100 + (_data.time[2] - 0x30) * 10 + (_data.time[3] - 0x30)));
+    ASW_LOGI("read** %s %s \n", _data.psn, _data.time);
 
     if (mq0 != NULL)
     {
@@ -375,9 +396,27 @@ int md_query_inv_data(Inverter *inv_ptr, unsigned int *time, uint16_t *error_cod
 
     md_decode_inv_data_content(&mb_res.frame[3], &inv_data);
 
+    //-----------  read hist err data --------------//
+    flush_serial_port(UART_NUM_1); // debug add
+    ASW_LOGI("Read Inv Data hist err \n");
+    mb_req.start_addr = 2300;
+    mb_req.reg_num = 10;
+    mb_res.len = 10 * 2 + 5;
+    memset(mb_res.frame, 0, sizeof(mb_res.frame));
+
+    uint8_t res2 = asw_read_registers(&mb_req, &mb_res, 0x04);
+
+    if (res2 == ASW_OK)
+    {
+        mc_decode_inv_hist_err(&mb_res.frame[3], &inv_data.hist_err);
+    }
+
+    //////////////////////////////////////////////////
+
     total_curt_power = inv_data.pac;
 
-    inv_data.rtc_time = get_time(now_time, sizeof(now_time)) - 8 * 3600;
+    // inv_data.rtc_time = get_time(now_time, sizeof(now_time)) - 8 * 3600;
+    inv_data.rtc_time = get_time(now_time, sizeof(now_time));
     strncpy(inv_data.time, now_time, sizeof(inv_data.time));
 
     memcpy(inv_data.psn, inv_ptr->regInfo.sn, sizeof(inv_ptr->regInfo.sn));
@@ -662,13 +701,19 @@ int8_t md_read_data(Inverter *inv_ptr, Inv_cmd cmd, unsigned int *time, uint16_t
         // Eng.Stg.Mch-Lanstick 20220907 +
 
         query_meter_proc(1); /** 读电表数据 */
-        // read_bat_if_has_estore();                   /** 读电池数据*/
-        asw_read_bat_arr_data(inv_ptr);
+
+        usleep(260 * 1000);
+        uart_flush(UART_NUM_1); // uart_tx_flush(0); [tgl mark]
+        uart_flush_input(UART_NUM_1);
+        usleep(260 * 1000);
+
+        // read_bat_if_has_estore();
+        asw_read_bat_arr_data(inv_ptr);                /** 读电池数据*/
         ret = md_query_inv_data(inv_ptr, time, error); /** 读逆变器数据*/
         break;
 
     case CMD_MD_READ_INV_INFO:
-
+        usleep(260 * 1000);
         ret = md_query_inv_info(inv_ptr, time);
 #if TRIPHASE_ARM_SUPPORT
         md_query_arm_info(inv_ptr, time);
@@ -836,7 +881,7 @@ static int8_t modbus_write(int fd, uint8_t slave_id, uint16_t start_addr, uint16
             }
         }
     }
-   ESP_LOGW(TAG," modbus write Error!!");
+    ESP_LOGW(TAG, " modbus write Error!!");
     return ASW_FAIL;
 }
 

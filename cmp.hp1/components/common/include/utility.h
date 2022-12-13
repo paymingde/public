@@ -35,6 +35,14 @@ int get_current_year(void);
 void set_time_cgi(char *str);
 void get_time_compact(char *p_date, int len);
 int fileter_time(char *times, char *buf);
+int write_daylight_data(int tmz, char *tmdata);
+int set_time_from_string(const char *chGetTiem, int tmz);
+int RTC_ConvertSecondsToDatetime(uint32_t seconds, struct tm *datetime);
+uint32_t RTC_ConvertDatetimeToSeconds(struct tm *datetime);
+int parse_dst(char *str, uint32_t time_sec);
+void get_time_from_tmstp(char *p_date, int len, uint32_t tmstp);
+int read_timezone(uint32_t utc_sec);
+uint32_t get_time_by_sec_later(char *p_date, int len, int sec);
 
 /*---  nvs------*/
 void esp32_wifinvs_clear(void);

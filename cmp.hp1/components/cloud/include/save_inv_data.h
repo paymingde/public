@@ -24,7 +24,7 @@
 extern int net_com_reboot_flg;  
 
 int write_change_apconfig(void);
-int recive_invdata(int * flag, Inv_data * inv_data, int * lost_flag);
+// int recive_invdata(int * flag, Inv_data * inv_data, int * lost_flag);
 // void set_resetnet_reboot(void);
 void check_resetnet_reboot(void);
 
@@ -34,5 +34,9 @@ int read_hist_msg(char *msg, int *msg_len);
 int hist_offset_next(void);
 int read_hist_payload(char *msg);
 int read_instant_payload(char *msg);
+
+int get_payload_type(char *buf);
+
+void set_payload_to_hist(char *buf);
 
 #endif

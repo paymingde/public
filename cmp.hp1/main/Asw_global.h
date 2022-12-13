@@ -31,6 +31,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "esp_err.h"
 
 #define ASW_FAIL -1
 #define ASW_OK 0
@@ -133,15 +134,14 @@ typedef enum
 #if TRIPHASE_ARM_SUPPORT
 #define FIRMWARE_REVISION "Energy.Tri.22A10-001R-T" //"22602-001R"
 #else
-#define FIRMWARE_REVISION "Eng.Sgl.22A10-001R-T" //"22602-001R"
-// #define FIRMWARE_REVISION "ASW-LanStick-22602-001R-01U" //"22602-001R"
+#define FIRMWARE_REVISION "Eng.Sgl.22A10-001R-T06.03" 
 #endif
 
 #define MONITOR_MODULE_VERSION "ESP32-WROVER-IE"
 // #define CGI_VERSION "V1.0"
 #define CGI_VERSION "V2.2"
 #define PROTOCOL_VERTION_SUPPORT_PARALLEL "V2.1.0"
-
+#define INV_NUM 15
 extern int g_ap_enable;         // define in the led_task.c ap_enable ->g_ap_enable
 extern uint8_t g_monitor_state; //[mark] define inv_com.c  monitor_state->g_monitor_state;
 extern int g_scan_stop;         //[mark] defined in wifi_sta_server.c
@@ -174,7 +174,10 @@ extern int g_meter_sync; // g_meter_sync  -- > g_meter_sync
 extern uint8_t g_ssc_enable;            //使能光储充 1-打开 0-关闭
 extern uint8_t g_parallel_enable;       //并机模式 1-打开 0-关闭
 extern uint8_t g_host_modbus_id;        //并机模式下主机modbus id
-extern bool g_safety_is_96_97;          //安规判断，1-支持96、97、80;0--不支持
+extern bool g_safety_is_96_97;          //安规判断，1-支持96、97、80; 0--不支持
 extern bool g_battery_selfmode_is_same; // 1-一致则发送电池调度信息通过主机或广播发送  0-则发送到对应的逆变器
+
+extern uint16_t g_last_data_mode;           //当前逆变器运行模式 单机模式
+extern uint16_t g_sche_last_data_mode[INV_NUM]; //当前逆变器运行模式 多机模式
 
 #endif

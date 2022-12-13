@@ -4,7 +4,7 @@
 ScheduleBat g_schedule_bat = {0}; // LanStick-MulitilInv -
 Bat_Monitor_arr_t g_monitor_para = {0};
 // Bat_Schdle_arr_t g_schedule_bat = {0};
-
+test_ctrl_t g_test_ctrl={0};
 Batt_data g_bat_data = {0};
 // meter_data_t g_meter_data = {0};  //g_inv_meter-->g_meter_data
 

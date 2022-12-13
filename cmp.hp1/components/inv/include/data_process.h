@@ -13,7 +13,7 @@
 
 #include "Asw_global.h"
 
-#define INV_NUM 15
+
 #define START_ADD 0x03
 #define SAVE_TIMING 300
 
@@ -38,6 +38,10 @@ extern uint32_t task_other_msg;
 extern uint32_t event_group_0;
 //--------------------------//
 
+#define INVDATA_TYPE_RT 1
+#define INVDATA_TYPE_HIST 2
+#define INVDATA_TYPE_TEST 3
+
 typedef enum
 {
     GLOBAL_INV_ARR = 0,
@@ -46,7 +50,8 @@ typedef enum
     GLOBAL_BAT_DATA,
     GLOBAL_METER_DATA,
     METER_CONTROL_CONFIG, /// Lanstick-MultilInv
-    GLOBAL_BATTERY_DATA
+    GLOBAL_BATTERY_DATA,
+    GLOBAL_TEST_CTRL
 } GLOBAL_PARA_TYPES;
 
 typedef enum
@@ -57,6 +62,11 @@ typedef enum
     MSG_SCAN_INVERTER
 } ALL_MSG_TYPE;
 
+typedef struct
+{
+    int on;
+    char deadline[20];
+} test_ctrl_t;
 //=============modbus===========//
 typedef struct
 {
@@ -275,6 +285,8 @@ typedef struct tagBatteryInfo
     uint8_t uu4; //!< power on/off
     uint8_t up4; //!< first power on
 
+    uint8_t on_off; // 40201 none_bat_inv power
+
     // RpwrPara ra_pwr; //!< Reactive power control value  //tgl mark 未用到 去掉了
     // uint16_t fq_t1; //!< charging power
     // uint16_t ov_t1; //!< discharging power
@@ -368,6 +380,8 @@ typedef struct tagInv_data
     char warn[10];              ///< Failure description for status 'failure'
     uint8_t dc_sample;          ///< the Zevercloud sample time
     uint32_t rtc_time;          ///< the occure time
+    uint16_t hist_err[10];      ///< hist err*5 hist warning *5
+    uint8_t data_type;          ///< data type
 } Inv_data, *Inv_data_ptr;
 
 /** This struct describes the attributes of inverter  */
@@ -564,7 +578,8 @@ typedef struct
 #define MSG_WRT_STA_INFO_INDEX 0x0010        ///< uesed to inform inv_com task update the sechdule immediately
 #define MSG_WRT_SET_HOST_INDEX 0x0020        ///< uesed to inform inv_com task to set addr to host
 #define MSG_BRDCST_DSP_ZV_CLD_INDEX 0x0040   ///< uesed to inform inv_com task to send cloud status to inv
-#define MSG_BRDCST_CHARGE_INDEX 0x0080   ///< uesed to inform inv_com task to send charge/discharge battery
+#define MSG_BRDCST_CHARGE_INDEX 0x0080       ///< uesed to inform inv_com task to send charge/discharge battery
+#define MSG_BRDCST_SET_ONOFF_INDEX 0x0100    ///< used to set noestore inverter power on/off
 //----- inv register add ----------
 #define INV_REG_ADDR_SSID_PSSWD 0X0484   // register address 41157 ssid
 #define INV_REG_ADDR_SET_HOST 0X045C     // register address 41117 主从机设置
@@ -586,7 +601,7 @@ typedef struct
 #define MSG_INV_SET_ADV_INDEX 0x00000200  ///<---used to send the meter status to inverter
 #define MSG_DSP_FD_DG_INDEX 0X00000800
 #define MSG_METER_TEST_INDEX 0x00001000    ///< Meter test message index
-#define MSG_INV_ONOFF_INDEX 0x00002000     ///< Meter test message index
+#define MSG_SET_ONOFF_INDEX 0x00002000     ///< Meter test message index
 #define MSG_DRMS_PWR_INDEX 0x00004000      ///< The drms power load speed control
 #define MSG_INV_FUN_INDEX 0x00008000       ///< The inverter function enable control--it's no use
 #define MSG_OVER_FREQ_INDEX 0x00010000     ///< The inverter function enable control--it's no use
@@ -670,7 +685,7 @@ extern Batt_data g_bat_data;
 // extern meter_data_t g_meter_data;  //改为局部变量
 
 /* Lanstick-MultilInv */
-#define MSG_INV_INDEX_GROUP (MSG_PWR_ACTIVE_INDEX | MSG_PWR_INACTIVE_INDEX | MSG_RPW_MODE_INDEX | MSG_INV_UPDATE_INDEX | MSG_INV_TIME_INDEX | MSG_COMBOX_TIME_INDEX | MSG_SET_SAFETY_INDEX | MSG_GET_SAFETY_INDEX | MSG_SAFETY_TYPE_INDEX | MSG_INV_SET_ADV_INDEX | MSG_DSP_HD_DG_INDEX | MSG_DSP_FD_DG_INDEX | MSG_METER_TEST_INDEX | MSG_INV_ONOFF_INDEX | MSG_DRMS_PWR_INDEX | MSG_INV_FUN_INDEX | MSG_OVER_FREQ_INDEX | MSG_OVER_VOLT_INDEX | MSG_LOAD_SPEED_INDEX | MSG_DSP_ZV_CLD_INDEX | MSG_SET_BATTERY_INDEX | MSG_SET_CHARGE_INDEX | MSG_SET_RUN_MODE_INDEX | MSG_SET_FIRST_RUN_INDEX | MSG_SET_POWER_INDEX | MSG_DRED_DISABLE_INDEX)
+#define MSG_INV_INDEX_GROUP (MSG_PWR_ACTIVE_INDEX | MSG_PWR_INACTIVE_INDEX | MSG_RPW_MODE_INDEX | MSG_INV_UPDATE_INDEX | MSG_INV_TIME_INDEX | MSG_COMBOX_TIME_INDEX | MSG_SET_SAFETY_INDEX | MSG_GET_SAFETY_INDEX | MSG_SAFETY_TYPE_INDEX | MSG_INV_SET_ADV_INDEX | MSG_DSP_HD_DG_INDEX | MSG_DSP_FD_DG_INDEX | MSG_METER_TEST_INDEX | MSG_SET_ONOFF_INDEX | MSG_DRMS_PWR_INDEX | MSG_INV_FUN_INDEX | MSG_OVER_FREQ_INDEX | MSG_OVER_VOLT_INDEX | MSG_LOAD_SPEED_INDEX | MSG_DSP_ZV_CLD_INDEX | MSG_SET_BATTERY_INDEX | MSG_SET_CHARGE_INDEX | MSG_SET_RUN_MODE_INDEX | MSG_SET_FIRST_RUN_INDEX | MSG_SET_POWER_INDEX | MSG_DRED_DISABLE_INDEX)
 
 void set_current_date(DATE_STRUCT *date);
 void get_current_date(DATE_STRUCT *date);
@@ -710,6 +725,7 @@ typedef MonitorBat_info Bat_Monitor_arr_t[INV_NUM];
 extern Bat_Monitor_arr_t g_monitor_para;
 // extern Bat_Schdle_arr_t g_schedule_bat;
 extern ScheduleBat g_schedule_bat;
+extern test_ctrl_t g_test_ctrl;
 
 void g_value_init(void);
 

@@ -75,6 +75,6 @@ void inv_task(void *pvParameters)
         com_idle_work();
         setting_event_handler();
 
-        vTaskDelay(10 / portTICK_PERIOD_MS); // usleep(10 * 1000);
+        vTaskDelay(20 / portTICK_PERIOD_MS); // usleep(10 * 1000);
     }
 }
