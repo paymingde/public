@@ -10,3 +10,12 @@ Beast pro搭配4G stick（海外）单台+多机并联。目前还没有时间�
 我司自有AFCI板CAN升级。---王银涛，钱硕
 
 CAN电池升级测试，从10月假期后开始
+
+------------------------------------------------------------------------------------------------------------
+
+    if (strstr(my_uri, "eu-central-1"))
+        sprintf(time_url, "http://eu-central-1-mqtt.aisweicloud.com/api/v1/updatetime?psno=%s&sign=%s", DEMO_DEVICE_NAME, reg_key);
+    else if (strstr(my_uri, "cn-shanghai"))
+        sprintf(time_url, "http://mqtt.aisweicloud.com/api/v1/updatetime?psno=%s&sign=%s", DEMO_DEVICE_NAME, reg_key);
+    else
+        sprintf(time_url, "http://ap-southeast-1-mqtt.aisweicloud.com/api/v1/updatetime?psno=%s&sign=%s", DEMO_DEVICE_NAME, reg_key);
