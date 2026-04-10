@@ -1,0 +1,7 @@
+typedef enum {
+    SENSOR_OFF,        // 下电（默认状态）
+    SENSOR_POWER_ON,   // 上电过程（等待稳定）
+    SENSOR_STARTING,   // 启动上报（发命令）
+    SENSOR_WORKING,    // 正常工作（持续上报）
+    SENSOR_ERROR       // 异常
+} SensorState_t;
